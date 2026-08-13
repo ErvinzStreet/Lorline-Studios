@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Lorline Studio</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="theme-color" content="#14161C">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  :root{
+    --ink:#14161C;
+    --panel:#1C1F29;
+    --panel-2:#242836;
+    --line:#31364433;
+    --line-strong:#3A3F52;
+    --paper:#EDEAE2;
+    --slate:#8B90A0;
+    --slate-dim:#5B6070;
+    --teal:#4FD1C5;
+    --teal-dim:#2E8B82;
+    --amber:#E8A33D;
+    --danger:#E8664F;
+    --radius:14px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--paper);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    overscroll-behavior:none;
+  }
+  @font-face{
+    font-family:'FrauncesFallback';
+    src:local('Georgia');
+  }
+  .serif{ font-family:'Fraunces','Georgia',serif; }
+  #app{ display:flex; flex-direction:column; height:100vh; height:100dvh; }
+
+  /* ---------- Header ---------- */
+  header.topbar{
+    display:flex; align-items:center; gap:10px;
+    padding:calc(10px + var(--safe-top)) 14px 10px 14px;
+    background:linear-gradient(180deg,#181B24,#14161C);
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+    z-index:20;
+  }
+  .btn-icon{
+    width:36px;height:36px;border-radius:10px;border:none;background:transparent;
+    color:var(--paper); font-size:20px; display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+  }
+  .btn-icon:active{ background:var(--panel-2); }
+  .crumbwrap{ flex:1; min-width:0; }
+  .crumb-eyebrow{ font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--slate); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .crumb-title{ font-size:17px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .save-pill{
+    font-size:11px; color:var(--slate); display:flex; align-items:center; gap:5px; flex-shrink:0;
+    padding:4px 9px; border-radius:99px; background:var(--panel-2);
+  }
+  .save-dot{ width:6px;height:6px;border-radius:50%; background:var(--teal); transition:opacity .2s; }
+  .save-dot.saving{ background:var(--amber); animation:pulse 1s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.35;} }
+
+  main{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; position:relative; }
+
+  /* ---------- Lists / cards ---------- */
+  .list-pad{ padding:16px 14px calc(90px + var(--safe-bottom)) 14px; }
+  .section-label{ font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--slate-dim); margin:18px 4px 8px; }
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px 15px; margin-bottom:10px; display:flex; align-items:center; gap:12px;
+    position:relative; overflow:hidden;
+  }
+  .card:active{ background:var(--panel-2); }
+  .card .stripe{ position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--teal-dim); }
+  .card.branch .stripe{ background:var(--amber); }
+  .card-main{ flex:1; min-width:0; }
+  .card-title{ font-size:15.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card-sub{ font-size:12.5px; color:var(--slate); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card-chevron{ color:var(--slate-dim); font-size:18px; flex-shrink:0; }
+  .card-kebab{ color:var(--slate); font-size:20px; padding:6px 4px 6px 10px; flex-shrink:0; }
+
+  .empty-state{ text-align:center; padding:50px 20px; color:var(--slate); }
+  .empty-state .glyph{ font-size:34px; margin-bottom:10px; opacity:.6; }
+  .empty-state .msg{ font-size:14px; line-height:1.5; max-width:280px; margin:0 auto; }
+
+  /* ---------- FAB ---------- */
+  .fab{
+    position:fixed; right:18px; bottom:calc(22px + var(--safe-bottom)); z-index:30;
+    width:56px;height:56px;border-radius:18px; border:none;
+    background:var(--teal); color:#0B2320; font-size:26px; font-weight:600;
+    box-shadow:0 8px 24px rgba(79,209,197,.35); display:flex; align-items:center; justify-content:center;
+  }
+  .fab:active{ transform:scale(.94); }
+
+  /* ---------- Tabs (subproject view) ---------- */
+  .tabbar{ display:flex; gap:6px; padding:12px 14px 0; background:var(--ink); position:sticky; top:0; z-index:10; }
+  .tab{
+    flex:1; text-align:center; padding:9px 0; font-size:13.5px; font-weight:600; color:var(--slate);
+    border-bottom:2px solid transparent; border-radius:10px 10px 0 0;
+  }
+  .tab.active{ color:var(--paper); border-bottom-color:var(--teal); background:var(--panel); }
+
+  /* ---------- Modal ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(10,11,15,.6); backdrop-filter:blur(2px);
+    display:flex; align-items:flex-end; justify-content:center; z-index:100;
+  }
+  .modal-overlay.center{ align-items:center; padding:20px; }
+  .modal-sheet{
+    background:var(--panel); width:100%; max-width:480px; border-radius:20px 20px 0 0;
+    padding:20px 20px calc(20px + var(--safe-bottom)); border:1px solid var(--line-strong); border-bottom:none;
+    max-height:85vh; overflow-y:auto;
+  }
+  .modal-overlay.center .modal-sheet{ border-radius:18px; border-bottom:1px solid var(--line-strong); max-height:80vh; }
+  .modal-title{ font-size:17px; font-weight:700; margin-bottom:14px; }
+  .field-label{ font-size:12px; color:var(--slate); margin:12px 0 6px; text-transform:uppercase; letter-spacing:.06em; }
+  .field-label:first-of-type{ margin-top:0; }
+  input[type=text], textarea, select{
+    width:100%; background:var(--panel-2); border:1px solid var(--line-strong); color:var(--paper);
+    border-radius:10px; padding:11px 12px; font-size:15px; font-family:inherit;
+  }
+  textarea{ resize:vertical; min-height:70px; }
+  select{ appearance:none; }
+  .modal-actions{ display:flex; gap:10px; margin-top:20px; }
+  .btn{
+    flex:1; padding:12px 14px; border-radius:11px; border:none; font-size:14.5px; font-weight:600;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .btn-primary{ background:var(--teal); color:#0B2320; }
+  .btn-ghost{ background:var(--panel-2); color:var(--paper); border:1px solid var(--line-strong); }
+  .btn-danger{ background:var(--danger); color:#2A0B06; }
+  .btn:active{ filter:brightness(.92); }
+  .btn-row-vert{ display:flex; flex-direction:column; gap:9px; margin-top:6px; }
+  .btn-row-vert .btn{ justify-content:flex-start; padding:13px 15px; }
+
+  .type-choice{ display:flex; gap:10px; margin-top:6px; }
+  .type-opt{ flex:1; border:1px solid var(--line-strong); border-radius:11px; padding:12px 10px; text-align:center; color:var(--slate); }
+  .type-opt.sel{ border-color:var(--teal); color:var(--paper); background:rgba(79,209,197,.08); }
+  .type-opt .ic{ font-size:20px; display:block; margin-bottom:4px; }
+
+  /* ---------- Doc editor ---------- */
+  .doc-toolbar{
+    display:flex; gap:4px; padding:8px 10px; background:var(--panel); border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:10; overflow-x:auto;
+  }
+  .tbtn{
+    min-width:38px; height:38px; border-radius:9px; border:none; background:transparent; color:var(--paper);
+    font-size:14px; font-weight:700; flex-shrink:0; display:flex;align-items:center;justify-content:center;
+  }
+  .tbtn.active{ background:var(--teal); color:#0B2320; }
+  .tbtn:active{ background:var(--panel-2); }
+  .tsep{ width:1px; background:var(--line-strong); margin:6px 4px; flex-shrink:0; }
+  #docEditor{
+    padding:22px 18px calc(60px + var(--safe-bottom)); min-height:60vh; outline:none;
+    font-size:16.5px; line-height:1.65; font-family:'Fraunces','Georgia',serif;
+  }
+  #docEditor h1{ font-size:1.55em; margin:.6em 0 .3em; }
+  #docEditor h2{ font-size:1.25em; margin:.6em 0 .3em; color:var(--teal); }
+  #docEditor p{ margin:0 0 .9em; }
+  #docEditor ul{ padding-left:1.3em; margin:0 0 .9em; }
+  #docEditor:empty:before{ content:attr(data-placeholder); color:var(--slate-dim); }
+
+  /* ---------- Flowchart ---------- */
+  .flow-toolbar{
+    display:flex; gap:8px; padding:10px 12px; background:var(--panel); border-bottom:1px solid var(--line);
+    overflow-x:auto; position:sticky; top:0; z-index:10;
+  }
+  .flow-toolbar .btn{ flex:none; padding:9px 13px; font-size:13px; }
+  .flow-canvas-wrap{ position:relative; overflow:auto; height:calc(100% - 0px); touch-action:pan-x pan-y; background:
+    radial-gradient(circle, #262B39 1px, transparent 1px) 0 0/22px 22px, var(--ink); }
+  svg#flowSvg{ display:block; }
+  .fnode{ cursor:grab; }
+  .fnode:active{ cursor:grabbing; }
+  .fnode rect, .fnode polygon{ stroke-width:1.6; }
+  .fnode.scene rect{ fill:#232838; stroke:#3E4560; }
+  .fnode.branch polygon{ fill:#2E2618; stroke:var(--amber); }
+  .fnode.selected rect, .fnode.selected polygon{ stroke:var(--teal); stroke-width:2.4; }
+  .fnode text{ fill:var(--paper); font-size:13px; font-family:-apple-system,Roboto,sans-serif; pointer-events:none; }
+  .fnode .flabel-sub{ fill:var(--slate); font-size:10.5px; }
+  .fedge-line{ stroke:#4A5170; stroke-width:1.8; fill:none; }
+  .fedge-hit{ stroke:transparent; stroke-width:18; fill:none; }
+  .fedge-line.selected{ stroke:var(--teal); stroke-width:2.4; }
+  .fedge-label{ fill:var(--slate); font-size:11px; font-family:-apple-system,Roboto,sans-serif; }
+  .fedge-label-bg{ fill:var(--ink); }
+  .linked-badge{ fill:var(--teal); }
+  .connect-banner{
+    position:sticky; top:0; z-index:15; background:var(--teal); color:#0B2320; font-weight:700; font-size:13px;
+    text-align:center; padding:9px; display:none;
+  }
+  .connect-banner.show{ display:block; }
+
+  /* ---------- Print ---------- */
+  #printArea{ display:none; }
+  @media print{
+    body *{ visibility:hidden; }
+    #printArea, #printArea *{ visibility:visible; }
+    #printArea{ display:block !important; position:absolute; left:0; top:0; width:100%; padding:20px; color:#000; background:#fff; }
+    #printArea h1{ font-family:Georgia,serif; }
+    #printArea img{ max-width:100%; }
+  }
+
+  .toast{
+    position:fixed; left:50%; bottom:calc(30px + var(--safe-bottom)); transform:translateX(-50%);
+    background:#2A2E3C; border:1px solid var(--line-strong); color:var(--paper); padding:10px 18px;
+    border-radius:99px; font-size:13.5px; z-index:200; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(-6px); }
+
+  ::selection{ background:rgba(79,209,197,.35); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="printArea"></div>
+<div id="toast" class="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   STORAGE
+============================================================ */
+var STORAGE_KEY = "lorline_studio_v1";
+var state = null;
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function now(){ return Date.now(); }
+
+function loadState(){
+  try{
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){ console.error("load failed", e); }
+  return { projects: [] };
+}
+
+var saveTimer = null;
+function scheduleSave(){
+  var dot = document.getElementById("saveDot");
+  var lbl = document.getElementById("saveLbl");
+  if(dot){ dot.classList.add("saving"); }
+  if(lbl){ lbl.textContent = "Saving…"; }
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(function(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }catch(e){
+      showToast("Storage full — export and clear old work");
+    }
+    var d = document.getElementById("saveDot");
+    var l = document.getElementById("saveLbl");
+    if(d) d.classList.remove("saving");
+    if(l) l.textContent = "Saved";
+  }, 400);
+}
+
+/* ============================================================
+   TOAST
+============================================================ */
+var toastTimer = null;
+function showToast(msg){
+  var t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+}
+
+/* ============================================================
+   NAV STATE
+============================================================ */
+var nav = { screen: "home", projectId:null, subprojectId:null, docId:null, flowchartId:null };
+var navStack = [];
+
+function goTo(next){
+  navStack.push(JSON.parse(JSON.stringify(nav)));
+  nav = Object.assign({}, nav, next);
+  render();
+}
+function goBack(){
+  if(navStack.length){
+    nav = navStack.pop();
+  } else {
+    nav = { screen:"home", projectId:null, subprojectId:null, docId:null, flowchartId:null };
+  }
+  render();
+}
+
+/* ============================================================
+   DATA HELPERS
+============================================================ */
+function getProject(id){ return state.projects.find(function(p){ return p.id===id; }); }
+function getSub(proj, id){ return proj.subprojects.find(function(s){ return s.id===id; }); }
+function getDoc(sub, id){ return sub.docs.find(function(d){ return d.id===id; }); }
+function getFlow(sub, id){ return sub.flowcharts.find(function(f){ return f.id===id; }); }
+
+function touch(obj){ obj.updatedAt = now(); }
+
+function fmtDate(ts){
+  if(!ts) return "";
+  var d = new Date(ts);
+  var opts = { month:"short", day:"numeric" };
+  var today = new Date();
+  if(d.toDateString()===today.toDateString()){
+    return d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
+  }
+  return d.toLocaleDateString([], opts);
+}
+
+/* ============================================================
+   ELEMENT HELPERS
+============================================================ */
+function el(tag, attrs, children){
+  var e = document.createElement(tag);
+  if(attrs) for(var k in attrs){
+    if(k==="class") e.className = attrs[k];
+    else if(k==="html") e.innerHTML = attrs[k];
+    else if(k.indexOf("on")===0 && typeof attrs[k]==="function") e.addEventListener(k.slice(2), attrs[k]);
+    else e.setAttribute(k, attrs[k]);
+  }
+  if(children) children.forEach(function(c){ if(c) e.appendChild(typeof c==="string"?document.createTextNode(c):c); });
+  return e;
+}
+function svgEl(tag, attrs){
+  var e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  if(attrs) for(var k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function clear(node){ while(node.firstChild) node.removeChild(node.firstChild); }
+
+/* ============================================================
+   MODAL SYSTEM
+============================================================ */
+function openModal(opts){
+  // opts: {title, fields:[{key,label,type,value,options}], actions:[{label,style,onClick(values)}], center}
+  var overlay = el("div", { class:"modal-overlay" + (opts.center?" center":"") });
+  var sheet = el("div", { class:"modal-sheet" });
+  sheet.appendChild(el("div", { class:"modal-title" }, [opts.title]));
+  var inputs = {};
+  (opts.fields||[]).forEach(function(f){
+    sheet.appendChild(el("div", { class:"field-label" }, [f.label]));
+    var input;
+    if(f.type==="textarea"){
+      input = el("textarea", { rows: f.rows||3 });
+      input.value = f.value||"";
+    } else if(f.type==="select"){
+      input = el("select", {});
+      (f.options||[]).forEach(function(o){
+        var opt = el("option", { value:o.value }, [o.label]);
+        if(o.value===f.value) opt.selected = true;
+        input.appendChild(opt);
+      });
+    } else {
+      input = el("input", { type:"text" });
+      input.value = f.value||"";
+    }
+    inputs[f.key] = input;
+    sheet.appendChild(input);
+  });
+  if(opts.body) sheet.appendChild(opts.body);
+  var actionsWrap = el("div", { class: opts.vertical ? "btn-row-vert" : "modal-actions" });
+  (opts.actions||[]).forEach(function(a){
+    var values = {};
+    var btn = el("button", { class:"btn " + (a.style||"btn-ghost"), onclick:function(){
+      for(var k in inputs) values[k] = inputs[k].value;
+      var res = a.onClick ? a.onClick(values) : undefined;
+      if(res !== false) close();
+    }}, [a.label]);
+    actionsWrap.appendChild(btn);
+  });
+  sheet.appendChild(actionsWrap);
+  overlay.appendChild(sheet);
+  function close(){ document.body.removeChild(overlay); }
+  overlay.addEventListener("click", function(e){ if(e.target===overlay) close(); });
+  document.body.appendChild(overlay);
+  var firstInput = sheet.querySelector("input,textarea");
+  if(firstInput){ setTimeout(function(){ firstInput.focus(); if(firstInput.select) firstInput.select(); }, 60); }
+  return close;
+}
+
+function confirmDialog(msg, onYes){
+  openModal({
+    title: msg,
+    center:true,
+    actions:[
+      { label:"Cancel", style:"btn-ghost" },
+      { label:"Delete", style:"btn-danger", onClick:function(){ onYes(); } }
+    ]
+  });
+}
+
+/* ============================================================
+   HEADER RENDER
+============================================================ */
+function renderHeader(container, opts){
+  // opts: {eyebrow, title, back, actions:[{icon,onClick}]}
+  var header = el("header", { class:"topbar" });
+  if(opts.back){
+    header.appendChild(el("button", { class:"btn-icon", onclick: goBack }, ["‹"]));
+  }
+  var crumb = el("div", { class:"crumbwrap" });
+  if(opts.eyebrow) crumb.appendChild(el("div", { class:"crumb-eyebrow" }, [opts.eyebrow]));
+  crumb.appendChild(el("div", { class:"crumb-title" }, [opts.title]));
+  header.appendChild(crumb);
+  if(opts.savePill){
+    header.appendChild(el("div", { class:"save-pill" }, [
+      el("span", { class:"save-dot", id:"saveDot" }),
+      el("span", { id:"saveLbl" }, ["Saved"])
+    ]));
+  }
+  (opts.actions||[]).forEach(function(a){
+    header.appendChild(el("button", { class:"btn-icon", onclick:a.onClick }, [a.icon]));
+  });
+  container.appendChild(header);
+}
+
+/* ============================================================
+   SCREEN: HOME (Projects)
+============================================================ */
+function screenHome(root){
+  renderHeader(root, { eyebrow:"Lorline Studio", title:"Projects" });
+  var main = el("main");
+  var pad = el("div", { class:"list-pad" });
+
+  if(state.projects.length===0){
+    pad.appendChild(el("div", { class:"empty-state" }, [
+      el("div", { class:"glyph" }, ["✎"]),
+      el("div", { class:"msg" }, ["No projects yet. Tap + to start your first Lorline Studios project."])
+    ]));
+  } else {
+    state.projects.slice().sort(function(a,b){ return b.updatedAt-a.updatedAt; }).forEach(function(p){
+      var subCount = p.subprojects.length;
+      var card = el("div", { class:"card", onclick:function(){ goTo({screen:"project", projectId:p.id}); } }, [
+        el("div", { class:"stripe" }),
+        el("div", { class:"card-main" }, [
+          el("div", { class:"card-title" }, [p.name]),
+          el("div", { class:"card-sub" }, [subCount + (subCount===1?" project inside · ":" projects inside · ") + fmtDate(p.updatedAt)])
+        ]),
+        el("div", { class:"card-kebab", onclick:function(e){ e.stopPropagation(); projectMenu(p); } }, ["⋮"])
+      ]);
+      pad.appendChild(card);
+    });
+  }
+  main.appendChild(pad);
+  root.appendChild(main);
+  root.appendChild(el("button", { class:"fab", onclick:function(){ newProjectModal(); } }, ["+"]));
+}
+
+function newProjectModal(){
+  openModal({
+    title:"New project",
+    fields:[{ key:"name", label:"Project name", type:"text", value:"" }],
+    actions:[
+      { label:"Cancel", style:"btn-ghost" },
+      { label:"Create", style:"btn-primary", onClick:function(v){
+        if(!v.name.trim()) return false;
+        var p = { id:uid(), name:v.name.trim(), updatedAt:now(), subprojects:[] };
+        state.projects.push(p);
+        scheduleSave();
+        goTo({screen:"project", projectId:p.id});
+      }}
+    ]
+  });
+}
+
+function projectMenu(p){
+  openModal({
+    title:p.name,
+    center:true,
+    vertical:true,
+    actions:[
+      { label:"✎  Rename", style:"btn-ghost", onClick:function(){
+        setTimeout(function(){ renameModal(p.name, function(newName){ p.name=newName; touch(p); scheduleSave(); render(); }); }, 50);
+      }},
+      { label:"🗑  Delete project", style:"btn-danger", onClick:function(){
+        setTimeout(function(){
+          confirmDialog("Delete \"" + p.name + "\" and everything inside it?", function(){
+            state.projects = state.projects.filter(function(x){ return x.id!==p.id; });
+            scheduleSave(); render();
+          });
+        }, 50);
+      }}
+    ]
+  });
+}
+
+function renameModal(currentName, onSave){
+  openModal({
+    title:"Rename",
+    fields:[{ key:"name", label:"Name", type:"text", value:currentName }],
+    actions:[
+      { label:"Cancel", style:"btn-ghost" },
+      { label:"Save", style:"btn-primary", onClick:function(v){ if(!v.name.trim()) return false; onSave(v.name.trim()); } }
+    ]
+  });
+}
+
+/* ============================================================
+   SCREEN: PROJECT (Subprojects)
+============================================================ */
+function screenProject(root){
+  var p = getProject(nav.projectId);
+  if(!p){ goBack(); return; }
+  renderHeader(root, { eyebrow:"Lorline Studio", title:p.name, back:true });
+  var main = el("main");
+  var pad = el("div", { class:"list-pad" });
+
+  if(p.subprojects.length===0){
+    pad.appendChild(el("div", { class:"empty-state" }, [
+      el("div", { class:"glyph" }, ["◇"]),
+      el("div", { class:"msg" }, ["No projects inside \""+p.name+"\" yet. Tap + to add one — each can hold its own pages and flowcharts."])
+    ]));
+  } else {
+    p.subprojects.slice().sort(function(a,b){ return b.updatedAt-a.updatedAt; }).forEach(function(s){
+      var card = el("div", { class:"card", onclick:function(){ goTo({screen:"subproject", subprojectId:s.id}); } }, [
+        el("div", { class:"stripe" }),
+        el("div", { class:"card-main" }, [
+          el("div", { class:"card-title" }, [s.name]),
+          el("div", { class:"card-sub" }, [s.docs.length + " page" + (s.docs.length===1?"":"s") + " · " + s.flowcharts.length + " flowchart" + (s.flowcharts.length===1?"":"s") + " · " + fmtDate(s.updatedAt)])
+        ]),
+        el("div", { class:"card-kebab", onclick:function(e){ e.stopPropagation(); subMenu(p, s); } }, ["⋮"])
+      ]);
+      pad.appendChild(card);
+    });
+  }
+  main.appendChild(pad);
+  root.appendChild(main);
+  root.appendChild(el("button", { class:"fab", onclick:function(){ newSubModal(p); } }, ["+"]));
+}
+
+function newSubModal(p){
+  openModal({
+    title:"New project inside \"" + p.name + "\"",
+    fields:[{ key:"name", label:"Name", type:"text", value:"" }],
+    actions:[
+      { label:"Cancel", style:"btn-ghost" },
+      { label:"Create", style:"btn-primary", onClick:function(v){
+        if(!v.name.trim()) return false;
+        var s = { id:uid(), name:v.name.trim(), updatedAt:now(), docs:[], flowcharts:[] };
+        p.subprojects.push(s);
+        touch(p); scheduleSave();
+        goTo({screen:"subproject", subprojectId:s.id});
+      }}
+    ]
+  });
+}
+
+function subMenu(p, s){
+  openModal({
+    title:s.name, center:true, vertical:true,
+    actions:[
+      { label:"✎  Rename", style:"btn-ghost", onClick:function(){
+        setTimeout(function(){ renameModal(s.name, function(n){ s.name=n; touch(s); scheduleSave(); render(); }); }, 50);
+      }},
+      { label:"🗑  Delete", style:"btn-danger", onClick:function(){
+        setTimeout(function(){
+          confirmDialog("Delete \"" + s.name + "\" and its pages & flowcharts?", function(){
+            p.subprojects = p.subprojects.filter(function(x){ return x.id!==s.id; });
+            touch(p); scheduleSave(); goBack();
+          });
+        }, 50);
+      }}
+    ]
+  });
+}
+
+/* ============================================================
+   SCREEN: SUBPROJECT (tabs: Pages / Flowcharts)
+============================================================ */
+var subTab = "docs";
+function screenSubproject(root){
+  var p = findProjectOfSub(nav.subprojectId);
+  if(!p){ goBack(); return; }
+  var s = getSub(p, nav.subprojectId);
+  if(!s){ goBack(); return; }
+
+  renderHeader(root, { eyebrow:p.name, title:s.name, back:true });
+  var tabbar = el("div", { class:"tabbar" }, [
+    el("div", { class:"tab" + (subTab==="docs"?" active":""), onclick:function(){ subTab="docs"; render(); } }, ["Pages"]),
+    el("div", { class:"tab" + (subTab==="flow"?" active":""), onclick:function(){ subTab="flow"; render(); } }, ["Flowcharts"])
+  ]);
+  root.appendChild(tabbar);
+
+  var main = el("main");
+  var pad = el("div", { class:"list-pad" });
+
+  if(subTab==="docs"){
+    if(s.docs.length===0){
+      pad.appendChild(el("div", { class:"empty-state" }, [
+        el("div", { class:"glyph" }, ["▤"]),
+        el("div", { class:"msg" }, ["No pages yet. Tap + to start writing."])
+      ]));
+    } else {
+      s.docs.slice().sort(function(a,b){ return b.updatedAt-a.updatedAt; }).forEach(function(d){
+        var preview = stripHtml(d.html).slice(0,70);
+        pad.appendChild(el("div", { class:"card", onclick:function(){ goTo({screen:"doc", subprojectId:s.id, docId:d.id}); } }, [
+          el("div", { class:"stripe" }),
+          el("div", { class:"card-main" }, [
+            el("div", { class:"card-title" }, [d.title || "Untitled page"]),
+            el("div", { class:"card-sub" }, [(preview||"Empty page") + " · " + fmtDate(d.updatedAt)])
+          ]),
+          el("div", { class:"card-kebab", onclick:function(e){ e.stopPropagation(); docMenu(s, d); } }, ["⋮"])
+        ]));
+      });
+    }
+  } else {
+    if(s.flowcharts.length===0){
+      pad.appendChild(el("div", { class:"empty-state" }, [
+        el("div", { class:"glyph" }, ["⌥"]),
+        el("div", { class:"msg" }, ["No flowcharts yet. Tap + to map out a story's branches."])
+      ]));
+    } else {
+      s.flowcharts.slice().sort(function(a,b){ return b.updatedAt-a.updatedAt; }).forEach(function(f){
+        pad.appendChild(el("div", { class:"card branch", onclick:function(){ goTo({screen:"flow", subprojectId:s.id, flowchartId:f.id}); } }, [
+          el("div", { class:"stripe" }),
+          el("div", { class:"card-main" }, [
+            el("div", { class:"card-title" }, [f.title || "Untitled flowchart"]),
+            el("div", { class:"card-sub" }, [f.nodes.length + " node" + (f.nodes.length===1?"":"s") + " · " + fmtDate(f.updatedAt)])
+          ]),
+          el("div", { class:"card-kebab", onclick:function(e){ e.stopPropagation(); flowMenu(s, f); } }, ["⋮"])
+        ]));
+      });
+    }
+  }
+  main.appendChild(pad);
+  root.appendChild(main);
+  root.appendChild(el("button", { class:"fab", onclick:function(){
+    if(subTab==="docs") newDocModal(s); else newFlowModal(s);
+  } }, ["+"]));
+}
+
+function findProjectOfSub(subId){
+  for(var i=0;i<state.projects.length;i++){
+    var p = state.projects[i];
+    if(p.subprojects.some(function(s){ return s.id===subId; })) return p;
+  }
+  return null;
+}
+function stripHtml(html){
+  var d = document.createElement("div");
+  d.innerHTML = html || "";
+  return (d.textContent || "").replace(/\s+/g," ").trim();
+}
+
+function newDocModal(s){
+  openModal({
+    title:"New page",
+    fields:[{ key:"title", label:"Page title", type:"text", value:"" }],
+    actions:[
+      { label:"Cancel", style:"btn-ghost" },
+      { label:"Create", style:"btn-primary", onClick:function(v){
+        var d = { id:uid(), title:v.title.trim()||"Untitled page", html:"", updatedAt:now() };
+        s.docs.push(d); touch(s); scheduleSave();
+        goTo({screen:"doc", subprojectId:s.id, docId:d.id});
+      }}
+    ]
+  });
+}
+function docMenu(s, d){
+  openModal({
+    title:d.title||"Untitled page", center:true, vertical:true,
+    actions:[
+      { label:"⇩  Export", style:"btn-ghost", onClick:function(){ setTimeout(function(){ exportDocModal(d); },50); } },
+      { label:"✎  Rename", style:"btn-ghost", onClick:function(){
+        setTimeout(function(){ renameModal(d.title, function(n){ d.title=n; touch(d); touch(s); scheduleSave(); render(); }); }, 50);
+      }},
+      { label:"🗑  Delete", style:"btn-danger", onClick:function(){
+        setTimeout(function(){
+          confirmDialog("Delete \"" + (d.title||"Untitled page") + "\"?", function(){
+            s.docs = s.docs.filter(function(x){ return x.id!==d.id; });
+            // clear links pointing to this doc
+            s.flowcharts.forEach(function(f){ f.nodes.forEach(function(n){ if(n.linkedDocId===d.id) n.linkedDocId=null; }); });
+            touch(s); scheduleSave(); render();
+          });
+        }, 50);
+      }}
+    ]
+  });
+}
+
+function newFlowModal(s){
+  openModal({
+    title:"New flowchart",
+    fields:[{ key:"title", label:"Flowchart title", type:"text", value:"" }],
+    actions:[
+      { label:"Cancel", style:"btn-ghost" },
+      { label:"Create", style:"btn-primary", onClick:function(v){
+        var f = { id:uid(), title:v.title.trim()||"Untitled flowchart", nodes:[], edges:[], updatedAt:now() };
+        s.flowcharts.push(f); touch(s); scheduleSave();
+        goTo({screen:"flow", subprojectId:s.id, flowchartId:f.id});
+      }}
+    ]
+  });
+}
+function flowMenu(s, f){
+  openModal({
+    title:f.title||"Untitled flowchart", center:true, vertical:true,
+    actions:[
+      { label:"⇩  Export", style:"btn-ghost", onClick:function(){ setTimeout(function(){ exportFlowModal(f); },50); } },
+      { label:"✎  Rename", style:"btn-ghost", onClick:function(){
+        setTimeout(function(){ renameModal(f.title, function(n){ f.title=n; touch(f); touch(s); scheduleSave(); render(); }); }, 50);
+      }},
+      { label:"🗑  Delete", style:"btn-danger", onClick:function(){
+        setTimeout(function(){
+          confirmDialog("Delete \"" + (f.title||"Untitled flowchart") + "\"?", function(){
+            s.flowcharts = s.flowcharts.filter(function(x){ return x.id!==f.id; });
+            touch(s); scheduleSave(); render();
+          });
+        }, 50);
+      }}
+    ]
+  });
+}
+
+/* ============================================================
+   SCREEN: DOC EDITOR
+============================================================ */
+function screenDoc(root){
+  var p = findProjectOfSub(nav.subprojectId);
+  var s = p && getSub(p, nav.subprojectId);
+  var d = s && getDoc(s, nav.docId);
+  if(!d){ goBack(); return; }
+
+  renderHeader(root, {
+    eyebrow: s.name, title: d.title || "Untitled page", back:true, savePill:true,
+    actions:[{ icon:"⇩", onClick:function(){ exportDocModal(d); } }, { icon:"⋮", onClick:function(){ docMenu(s, d); } }]
+  });
+
+  var toolbar = el("div", { class:"doc-toolbar" });
+  var btns = {};
+  function mkBtn(cmd, label, val){
+    var b = el("button", { class:"tbtn", onclick:function(){
+      document.execCommand(cmd, false, val||null);
+      editor.focus();
+      refreshToolbarState();
+      onDocChange();
+    } }, [label]);
+    btns[cmd+(val||"")] = b;
+    return b;
+  }
+  toolbar.appendChild(mkBtn("bold","B"));
+  toolbar.appendChild(mkBtn("italic","I"));
+  toolbar.appendChild(mkBtn("underline","U"));
+  toolbar.appendChild(el("div",{class:"tsep"}));
+  toolbar.appendChild(mkBtn("formatBlock","H1","H1"));
+  toolbar.appendChild(mkBtn("formatBlock","H2","H2"));
+  toolbar.appendChild(mkBtn("formatBlock","¶","P"));
+  toolbar.appendChild(el("div",{class:"tsep"}));
+  toolbar.appendChild(mkBtn("insertUnorderedList","•—"));
+  root.appendChild(toolbar);
+
+  var main = el("main");
+  var editor = el("div", { id:"docEditor", contenteditable:"true", spellcheck:"true", "data-placeholder":"Start writing…" });
+  editor.innerHTML = d.html || "";
+  main.appendChild(editor);
+  root.appendChild(main);
+
+  var typingTimer = null;
+  function onDocChange(){
+    d.html = editor.innerHTML;
+    touch(d); touch(s);
+    var dot = document.getElementById("saveDot");
+    if(dot) dot.style.display = "block";
+    scheduleSave();
+    updateCardPreviewLive();
+  }
+  function updateCardPreviewLive(){
+    var titleEl = document.querySelector(".crumb-title");
+    // no-op, title stays as page title
+  }
+  editor.addEventListener("input", function(){
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(onDocChange, 250);
+  });
+  editor.addEventListener("keyup", refreshToolbarState);
+  editor.addEventListener("mouseup", refreshToolbarState);
+  editor.addEventListener("touchend", function(){ setTimeout(refreshToolbarState, 30); });
+
+  function refreshToolbarState(){
+    ["bold","italic","underline","insertUnorderedList"].forEach(function(cmd){
+      var b = btns[cmd+""];
+      if(!b) return;
+      try{ b.classList.toggle("active", document.queryCommandState(cmd)); }catch(e){}
+    });
+  }
+}
+
+/* ============================================================
+   DOC EXPORT
+============================================================ */
+function exportDocModal(d){
+  openModal({
+    title:"Export \"" + (d.title||"Untitled page") + "\"",
+    center:true, vertical:true,
+    actions:[
+      { label:"📄  Plain text (.txt)", style:"btn-ghost", onClick:function(){ exportDocTxt(d); } },
+      { label:"🖨  PDF (print)", style:"btn-ghost", onClick:function(){ exportDocPdf(d); } },
+      { label:"📝  Word (.docx)", style:"btn-ghost", onClick:function(){ exportDocDocx(d); } }
+    ]
+  });
+}
+function downloadBlob(blob, filename){
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 400);
+  showToast("Exported " + filename);
+}
+function safeFilename(name){ return (name||"untitled").replace(/[^a-z0-9\-_ ]/gi,"").trim().replace(/\s+/g,"-") || "untitled"; }
+
+function exportDocTxt(d){
+  var tmp = document.createElement("div");
+  tmp.innerHTML = d.html || "";
+  var lines = [];
+  tmp.childNodes.forEach(function(n){
+    var t = n.textContent || "";
+    if(n.nodeName==="LI") lines.push("• " + t);
+    else lines.push(t);
+  });
+  var text = (d.title||"Untitled page") + "\n\n" + lines.join("\n");
+  downloadBlob(new Blob([text], {type:"text/plain"}), safeFilename(d.title) + ".txt");
+}
+function exportDocPdf(d){
+  var pa = document.getElementById("printArea");
+  clear(pa);
+  var wrap = document.createElement("div");
+  var h = document.createElement("h1");
+  h.style.fontFamily = "Georgia,serif";
+  h.textContent = d.title || "Untitled page";
+  wrap.appendChild(h);
+  var body = document.createElement("div");
+  body.style.fontFamily = "Georgia,serif";
+  body.style.fontSize = "13pt";
+  body.style.lineHeight = "1.6";
+  body.innerHTML = d.html || "";
+  wrap.appendChild(body);
+  pa.appendChild(wrap);
+  document.title = safeFilename(d.title);
+  setTimeout(function(){ window.print(); }, 80);
+}
+
+/* ============================================================
+   ZIP WRITER (pure JS, store/no-compression) — for DOCX export
+============================================================ */
+var CRC_TABLE = (function(){
+  var t = [];
+  for(var n=0;n<256;n++){
+    var c = n;
+    for(var k=0;k<8;k++) c = (c&1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1);
+    t[n] = c>>>0;
+  }
+  return t;
+})();
+function crc32(bytes){
+  var crc = 0xFFFFFFFF;
+  for(var i=0;i<bytes.length;i++) crc = (crc>>>8) ^ CRC_TABLE[(crc ^ bytes[i]) & 0xFF];
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+function strToBytes(str){ return new TextEncoder().encode(str); }
+function u16a(n){ return new Uint8Array([n & 0xFF, (n>>>8) & 0xFF]); }
+function u32a(n){ return new Uint8Array([n & 0xFF, (n>>>8) & 0xFF, (n>>>16) & 0xFF, (n>>>24) & 0xFF]); }
+function concatBytes(arrs){
+  var total = 0;
+  arrs.forEach(function(a){ total += a.length; });
+  var out = new Uint8Array(total);
+  var off = 0;
+  arrs.forEach(function(a){ out.set(a, off); off += a.length; });
+  return out;
+}
+
+function ZipWriter(){ this.entries = []; }
+ZipWriter.prototype.addFile = function(name, content){
+  var data = typeof content === "string" ? strToBytes(content) : content;
+  var nameBytes = strToBytes(name);
+  var crc = crc32(data);
+  this.entries.push({ name:name, nameBytes:nameBytes, data:data, crc:crc });
+};
+ZipWriter.prototype.build = function(){
+  var parts = [];
+  var offset = 0;
+  var centralParts = [];
+  var self = this;
+  this.entries.forEach(function(entry){
+    var localHeader = concatBytes([
+      u32a(0x04034b50), u16a(20), u16a(0), u16a(0),
+      u16a(0), u16a(0x21), // time/date dummy
+      u32a(entry.crc), u32a(entry.data.length), u32a(entry.data.length),
+      u16a(entry.nameBytes.length), u16a(0),
+      entry.nameBytes
+    ]);
+    entry.offset = offset;
+    parts.push(localHeader, entry.data);
+    offset += localHeader.length + entry.data.length;
+  });
+  this.entries.forEach(function(entry){
+    var central = concatBytes([
+      u32a(0x02014b50), u16a(20), u16a(20), u16a(0),
+      u16a(0), u16a(0), u16a(0x21),
+      u32a(entry.crc), u32a(entry.data.length), u32a(entry.data.length),
+      u16a(entry.nameBytes.length), u16a(0), u16a(0),
+      u16a(0), u16a(0), u32a(0),
+      u32a(entry.offset),
+      entry.nameBytes
+    ]);
+    centralParts.push(central);
+  });
+  var centralSize = 0;
+  centralParts.forEach(function(c){ centralSize += c.length; });
+  var centralOffset = offset;
+  var eocd = concatBytes([
+    u32a(0x06054b50), u16a(0), u16a(0),
+    u16a(self.entries.length), u16a(self.entries.length),
+    u32a(centralSize), u32a(centralOffset), u16a(0)
+  ]);
+  var all = parts.concat(centralParts, [eocd]);
+  return new Blob(all, { type:"application/zip" });
+};
+
+/* ---- HTML (contenteditable) -> DOCX paragraphs ---- */
+function xmlEscape(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function domToParagraphs(root){
+  var paras = [];
+  function walkInline(node, fmt, runs){
+    if(node.nodeType===3){
+      if(node.textContent) runs.push({ text:node.textContent, bold:fmt.bold, italic:fmt.italic, underline:fmt.underline });
+      return;
+    }
+    if(node.nodeType!==1) return;
+    var tag = node.nodeName;
+    var nf = Object.assign({}, fmt);
+    if(tag==="B"||tag==="STRONG") nf.bold = true;
+    if(tag==="I"||tag==="EM") nf.italic = true;
+    if(tag==="U") nf.underline = true;
+    if(tag==="BR"){ runs.push({ text:"\n", bold:fmt.bold, italic:fmt.italic, underline:fmt.underline }); return; }
+    node.childNodes.forEach(function(c){ walkInline(c, nf, runs); });
+  }
+  function pushBlock(node, style){
+    var runs = [];
+    walkInline(node, {}, runs);
+    if(runs.length===0) runs.push({ text:"" });
+    paras.push({ style:style, runs:runs });
+  }
+  root.childNodes.forEach(function(node){
+    if(node.nodeType===3){
+      if(node.textContent.trim()) paras.push({ style:"Normal", runs:[{text:node.textContent}] });
+      return;
+    }
+    if(node.nodeType!==1) return;
+    switch(node.nodeName){
+      case "H1": pushBlock(node, "Heading1"); break;
+      case "H2": pushBlock(node, "Heading2"); break;
+      case "UL": case "OL":
+        node.querySelectorAll("li").forEach(function(li){ pushBlock(li, "ListParagraph"); });
+        break;
+      case "P": case "DIV": pushBlock(node, "Normal"); break;
+      default: pushBlock(node, "Normal");
+    }
+  });
+  if(paras.length===0) paras.push({ style:"Normal", runs:[{text:""}] });
+  return paras;
+}
+function paragraphsToDocxXml(title, paras){
+  var body = "";
+  body += '<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t xml:space="preserve">' + xmlEscape(title) + '</w:t></w:r></w:p>';
+  paras.forEach(function(p){
+    var pPr = p.style && p.style!=="Normal" ? '<w:pPr><w:pStyle w:val="'+p.style+'"/></w:pPr>' : "";
+    var runsXml = "";
+    p.runs.forEach(function(r){
+      if(r.text==="\n"){ runsXml += "<w:br/>"; return; }
+      var rPr = "";
+      if(r.bold||r.italic||r.underline){
+        rPr = "<w:rPr>" + (r.bold?'<w:b/>':"") + (r.italic?'<w:i/>':"") + (r.underline?'<w:u w:val="single"/>':"") + "</w:rPr>";
+      }
+      runsXml += "<w:r>" + rPr + '<w:t xml:space="preserve">' + xmlEscape(r.text) + "</w:t></w:r>";
+    });
+    body += "<w:p>" + pPr + runsXml + "</w:p>";
+  });
+  return body;
+}
+function buildDocxBlob(title, html){
+  var tmp = document.createElement("div");
+  tmp.innerHTML = html || "";
+  var paras = domToParagraphs(tmp);
+  var bodyXml = paragraphsToDocxXml(title, paras);
+
+  var contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+    '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
+    '</Types>';
+
+  var rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+    '</Relationships>';
+
+  var docRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+    '</Relationships>';
+
+  var styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:pPr/><w:rPr><w:sz w:val="24"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="240"/></w:pPr><w:rPr><w:b/><w:sz w:val="44"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="240" w:after="120"/></w:pPr><w:rPr><w:b/><w:sz w:val="32"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="200" w:after="100"/></w:pPr><w:rPr><w:b/><w:sz w:val="27"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="720"/></w:pPr></w:style>' +
+    '</w:styles>';
+
+  var documentXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:body>' + bodyXml +
+    '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>' +
+    '</w:body></w:document>';
+
+  var zip = new ZipWriter();
+  zip.addFile("[Content_Types].xml", contentTypes);
+  zip.addFile("_rels/.rels", rootRels);
+  zip.addFile("word/document.xml", documentXml);
+  zip.addFile("word/_rels/document.xml.rels", docRels);
+  zip.addFile("word/styles.xml", styles);
+  return zip.build();
+}
+function exportDocDocx(d){
+  var blob = buildDocxBlob(d.title || "Untitled page", d.html || "");
+  downloadBlob(blob, safeFilename(d.title) + ".docx");
+}
+
+/* ============================================================
+   SCREEN: FLOWCHART EDITOR
+============================================================ */
+var flowConnectMode = false;
+var flowConnectFrom = null;
+var flowSelectedNode = null;
+var flowSelectedEdge = null;
+
+function screenFlow(root){
+  var p = findProjectOfSub(nav.subprojectId);
+  var s = p && getSub(p, nav.subprojectId);
+  var f = s && getFlow(s, nav.flowchartId);
+  if(!f){ goBack(); return; }
+  flowConnectMode = false; flowConnectFrom = null; flowSelectedNode = null; flowSelectedEdge = null;
+
+  renderHeader(root, {
+    eyebrow: s.name, title: f.title || "Untitled flowchart", back:true, savePill:true,
+    actions:[{ icon:"⇩", onClick:function(){ exportFlowModal(f); } }, { icon:"⋮", onClick:function(){ flowMenu(s, f); } }]
+  });
+
+  var toolbar = el("div", { class:"flow-toolbar" });
+  var addSceneBtn = el("button", { class:"btn btn-ghost", onclick:function(){ addNode(f, "scene"); } }, ["+ Scene"]);
+  var addBranchBtn = el("button", { class:"btn btn-ghost", onclick:function(){ addNode(f, "branch"); } }, ["◇ Decision"]);
+  var connectBtn = el("button", { class:"btn btn-ghost", id:"connectBtn", onclick:function(){ toggleConnectMode(); } }, ["⇢ Link nodes"]);
+  var delBtn = el("button", { class:"btn btn-ghost", onclick:function(){ deleteSelected(f); } }, ["🗑"]);
+  toolbar.appendChild(addSceneBtn);
+  toolbar.appendChild(addBranchBtn);
+  toolbar.appendChild(connectBtn);
+  toolbar.appendChild(delBtn);
+  root.appendChild(toolbar);
+
+  var banner = el("div", { class:"connect-banner", id:"connectBanner" }, ["Tap a node, then tap a second node to connect them"]);
+  root.appendChild(banner);
+
+  var main = el("main");
+  var wrap = el("div", { class:"flow-canvas-wrap" });
+  var W = Math.max(1400, window.innerWidth*2);
+  var H = Math.max(1400, window.innerHeight*2);
+  var svg = svgEl("svg", { id:"flowSvg", width:W, height:H, viewBox:"0 0 "+W+" "+H });
+  wrap.appendChild(svg);
+  main.appendChild(wrap);
+  root.appendChild(main);
+
+  var edgeLayer = svgEl("g", { id:"edgeLayer" });
+  var nodeLayer = svgEl("g", { id:"nodeLayer" });
+  svg.appendChild(edgeLayer);
+  svg.appendChild(nodeLayer);
+
+  function toggleConnectMode(){
+    flowConnectMode = !flowConnectMode;
+    flowConnectFrom = null;
+    connectBtn.classList.toggle("btn-primary", flowConnectMode);
+    document.getElementById("connectBanner").classList.toggle("show", flowConnectMode);
+    renderNodes();
+  }
+
+  function addNode(f, type){
+    var n = { id:uid(), x: 60 + Math.random()*120, y: 60 + Math.random()*120, w: type==="branch"?150:170, h: type==="branch"?100:70, text: type==="branch" ? "New decision" : "New scene", type:type, linkedDocId:null };
+    f.nodes.push(n); touch(f); touch(s); scheduleSave();
+    renderAll();
+  }
+
+  function deleteSelected(f){
+    if(flowSelectedNode){
+      f.nodes = f.nodes.filter(function(n){ return n.id!==flowSelectedNode; });
+      f.edges = f.edges.filter(function(e){ return e.from!==flowSelectedNode && e.to!==flowSelectedNode; });
+      flowSelectedNode = null;
+      touch(f); touch(s); scheduleSave(); renderAll();
+    } else if(flowSelectedEdge){
+      f.edges = f.edges.filter(function(e){ return e.id!==flowSelectedEdge; });
+      flowSelectedEdge = null;
+      touch(f); touch(s); scheduleSave(); renderAll();
+    } else {
+      showToast("Tap a node or connector to select it first");
+    }
+  }
+
+  function nodeCenter(n){ return { x:n.x+n.w/2, y:n.y+n.h/2 }; }
+
+  function edgePath(a,b){
+    var ca = nodeCenter(a), cb = nodeCenter(b);
+    var dx = (cb.x-ca.x)*0.5;
+    return "M"+ca.x+","+ca.y+" C"+(ca.x+dx)+","+ca.y+" "+(cb.x-dx)+","+cb.y+" "+cb.x+","+cb.y;
+  }
+
+  function renderEdges(){
+    clear(edgeLayer);
+    f.edges.forEach(function(e){
+      var a = f.nodes.find(function(n){ return n.id===e.from; });
+      var b = f.nodes.find(function(n){ return n.id===e.to; });
+      if(!a||!b) return;
+      var d = edgePath(a,b);
+      var hit = svgEl("path", { d:d, class:"fedge-hit" });
+      var line = svgEl("path", { d:d, class:"fedge-line" + (flowSelectedEdge===e.id?" selected":""), "marker-end":"url(#arrow)" });
+      hit.addEventListener("click", function(evt){ evt.stopPropagation(); flowSelectedEdge=e.id; flowSelectedNode=null; renderAll(); });
+      edgeLayer.appendChild(line);
+      edgeLayer.appendChild(hit);
+      if(e.label){
+        var mid = { x:(a.x+a.w/2+b.x+b.w/2)/2, y:(a.y+a.h/2+b.y+b.h/2)/2 };
+        var bg = svgEl("rect", { x:mid.x-30, y:mid.y-10, width:60, height:18, rx:4, class:"fedge-label-bg" });
+        var lbl = svgEl("text", { x:mid.x, y:mid.y+3, "text-anchor":"middle", class:"fedge-label" });
+        lbl.textContent = e.label;
+        edgeLayer.appendChild(bg);
+        edgeLayer.appendChild(lbl);
+      }
+    });
+    var defs = svgEl("defs");
+    defs.innerHTML = '<marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#4A5170"/></marker>';
+    edgeLayer.appendChild(defs);
+  }
+
+  function renderNodes(){
+    clear(nodeLayer);
+    f.nodes.forEach(function(n){
+      var g = svgEl("g", { class:"fnode " + n.type + (flowSelectedNode===n.id?" selected":""), transform:"translate("+n.x+","+n.y+")" });
+      if(n.type==="branch"){
+        var pts = [n.w/2+",0", n.w+","+(n.h/2), n.w/2+","+n.h, "0,"+(n.h/2)].join(" ");
+        g.appendChild(svgEl("polygon", { points:pts }));
+      } else {
+        g.appendChild(svgEl("rect", { width:n.w, height:n.h, rx:12 }));
+      }
+      var label = svgEl("text", { x:n.w/2, y: n.type==="branch" ? n.h/2 : n.h/2 - (n.linkedDocId?6:0), "text-anchor":"middle" });
+      var txt = n.text.length>22 ? n.text.slice(0,21)+"…" : n.text;
+      label.textContent = txt;
+      g.appendChild(label);
+      if(n.linkedDocId){
+        var docRef = s.docs.find(function(dd){ return dd.id===n.linkedDocId; });
+        var subLabel = svgEl("text", { x:n.w/2, y:n.h/2+14, "text-anchor":"middle", class:"flabel-sub" });
+        subLabel.textContent = "📄 " + (docRef ? (docRef.title||"page") : "linked");
+        g.appendChild(subLabel);
+      }
+      nodeLayer.appendChild(g);
+      attachNodeInteractions(g, n);
+    });
+  }
+
+  function attachNodeInteractions(g, n){
+    var dragging = false, moved = false, startX, startY, origX, origY, pointerId;
+    g.addEventListener("pointerdown", function(evt){
+      evt.stopPropagation();
+      pointerId = evt.pointerId;
+      g.setPointerCapture(pointerId);
+      dragging = true; moved = false;
+      var pt = svgPoint(evt);
+      startX = pt.x; startY = pt.y; origX = n.x; origY = n.y;
+    });
+    g.addEventListener("pointermove", function(evt){
+      if(!dragging) return;
+      var pt = svgPoint(evt);
+      var dx = pt.x-startX, dy = pt.y-startY;
+      if(Math.abs(dx)>3||Math.abs(dy)>3) moved = true;
+      if(moved){
+        n.x = origX+dx; n.y = origY+dy;
+        g.setAttribute("transform","translate("+n.x+","+n.y+")");
+        renderEdges();
+      }
+    });
+    g.addEventListener("pointerup", function(evt){
+      dragging = false;
+      try{ g.releasePointerCapture(pointerId); }catch(e){}
+      if(moved){
+        touch(f); touch(s); scheduleSave();
+      } else {
+        handleNodeTap(n);
+      }
+    });
+  }
+
+  function svgPoint(evt){
+    var rect = svg.getBoundingClientRect();
+    var scaleX = svg.viewBox.baseVal.width / rect.width;
+    var scaleY = svg.viewBox.baseVal.height / rect.height;
+    return { x:(evt.clientX-rect.left)*scaleX, y:(evt.clientY-rect.top)*scaleY };
+  }
+
+  function handleNodeTap(n){
+    if(flowConnectMode){
+      if(!flowConnectFrom){
+        flowConnectFrom = n.id;
+        showToast("Now tap the node to connect to");
+      } else if(flowConnectFrom!==n.id){
+        var exists = f.edges.some(function(e){ return e.from===flowConnectFrom && e.to===n.id; });
+        if(!exists){
+          f.edges.push({ id:uid(), from:flowConnectFrom, to:n.id, label:"" });
+          touch(f); touch(s); scheduleSave();
+        }
+        flowConnectFrom = null;
+        renderAll();
+      }
+      return;
+    }
+    flowSelectedNode = n.id; flowSelectedEdge = null;
+    renderAll();
+    openNodeEditor(n);
+  }
+
+  function openNodeEditor(n){
+    var docOptions = [{ value:"", label:"— No linked page —" }].concat(
+      s.docs.map(function(dd){ return { value:dd.id, label:dd.title||"Untitled page" }; })
+    );
+    openModal({
+      title: n.type==="branch" ? "Decision point" : "Scene node",
+      fields:[
+        { key:"text", label:"Text", type:"textarea", value:n.text, rows:2 },
+        { key:"linkedDocId", label:"Linked page", type:"select", value:n.linkedDocId||"", options:docOptions }
+      ],
+      actions:[
+        { label:"Cancel", style:"btn-ghost" },
+        { label:"Open linked page", style:"btn-ghost", onClick:function(){
+          if(n.linkedDocId){
+            var dd = s.docs.find(function(x){ return x.id===n.linkedDocId; });
+            if(dd) setTimeout(function(){ goTo({screen:"doc", subprojectId:s.id, docId:dd.id}); }, 60);
+          } else { showToast("No page linked yet"); return false; }
+        }},
+        { label:"Save", style:"btn-primary", onClick:function(v){
+          n.text = v.text.trim() || (n.type==="branch"?"Decision":"Scene");
+          n.linkedDocId = v.linkedDocId || null;
+          touch(f); touch(s); scheduleSave();
+          renderAll();
+        }}
+      ]
+    });
+  }
+
+  svg.addEventListener("click", function(evt){
+    if(evt.target===svg){ flowSelectedNode=null; flowSelectedEdge=null; renderAll(); }
+  });
+
+  function renderAll(){ renderEdges(); renderNodes(); }
+  renderAll();
+}
+
+/* ============================================================
+   FLOWCHART EXPORT
+============================================================ */
+function exportFlowModal(f){
+  openModal({
+    title:"Export \"" + (f.title||"Untitled flowchart") + "\"",
+    center:true, vertical:true,
+    actions:[
+      { label:"🖼  PNG image", style:"btn-ghost", onClick:function(){ exportFlowPng(f); } },
+      { label:"🖨  PDF (print)", style:"btn-ghost", onClick:function(){ exportFlowPdf(f); } },
+      { label:"{ }  JSON (backup / re-import)", style:"btn-ghost", onClick:function(){ exportFlowJson(f); } }
+    ]
+  });
+}
+function computeFlowBounds(f){
+  if(f.nodes.length===0) return { minX:0,minY:0,maxX:400,maxY:300 };
+  var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  f.nodes.forEach(function(n){
+    minX=Math.min(minX,n.x); minY=Math.min(minY,n.y);
+    maxX=Math.max(maxX,n.x+n.w); maxY=Math.max(maxY,n.y+n.h);
+  });
+  return { minX:minX-40, minY:minY-40, maxX:maxX+40, maxY:maxY+40 };
+}
+function buildStandaloneFlowSvgString(f, subDocs){
+  var b = computeFlowBounds(f);
+  var w = b.maxX-b.minX, h = b.maxY-b.minY;
+  var parts = [];
+  parts.push('<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="'+b.minX+' '+b.minY+' '+w+' '+h+'" font-family="Helvetica,Arial,sans-serif">');
+  parts.push('<rect x="'+b.minX+'" y="'+b.minY+'" width="'+w+'" height="'+h+'" fill="#14161C"/>');
+  parts.push('<defs><marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#8A90A8"/></marker></defs>');
+  function center(n){ return { x:n.x+n.w/2, y:n.y+n.h/2 }; }
+  f.edges.forEach(function(e){
+    var a = f.nodes.find(function(n){ return n.id===e.from; });
+    var b2 = f.nodes.find(function(n){ return n.id===e.to; });
+    if(!a||!b2) return;
+    var ca=center(a), cb=center(b2);
+    var dx=(cb.x-ca.x)*0.5;
+    parts.push('<path d="M'+ca.x+','+ca.y+' C'+(ca.x+dx)+','+ca.y+' '+(cb.x-dx)+','+cb.y+' '+cb.x+','+cb.y+'" stroke="#8A90A8" stroke-width="2" fill="none" marker-end="url(#arrow2)"/>');
+  });
+  f.nodes.forEach(function(n){
+    if(n.type==="branch"){
+      var pts = [(n.x+n.w/2)+","+n.y, (n.x+n.w)+","+(n.y+n.h/2), (n.x+n.w/2)+","+(n.y+n.h), n.x+","+(n.y+n.h/2)].join(" ");
+      parts.push('<polygon points="'+pts+'" fill="#2E2618" stroke="#E8A33D" stroke-width="2"/>');
+    } else {
+      parts.push('<rect x="'+n.x+'" y="'+n.y+'" width="'+n.w+'" height="'+n.h+'" rx="12" fill="#232838" stroke="#3E4560" stroke-width="2"/>');
+    }
+    var cx = n.x+n.w/2, cy = n.y+n.h/2;
+    var txt = xmlEscape(n.text||"");
+    parts.push('<text x="'+cx+'" y="'+(n.linkedDocId?cy-4:cy+4)+'" text-anchor="middle" fill="#EDEAE2" font-size="14">'+txt+'</text>');
+    if(n.linkedDocId){
+      var docRef = subDocs.find(function(dd){ return dd.id===n.linkedDocId; });
+      parts.push('<text x="'+cx+'" y="'+(cy+14)+'" text-anchor="middle" fill="#8B90A0" font-size="11">linked: '+xmlEscape(docRef?docRef.title:"page")+'</text>');
+    }
+  });
+  parts.push('</svg>');
+  return parts.join("");
+}
+function exportFlowPng(f){
+  var p = findProjectOfSub(nav.subprojectId);
+  var s = p && getSub(p, nav.subprojectId);
+  var svgStr = buildStandaloneFlowSvgString(f, s.docs);
+  var b = computeFlowBounds(f);
+  var img = new Image();
+  var svgBlob = new Blob([svgStr], { type:"image/svg+xml;charset=utf-8" });
+  var url = URL.createObjectURL(svgBlob);
+  img.onload = function(){
+    var scale = 2;
+    var canvas = document.createElement("canvas");
+    canvas.width = (b.maxX-b.minX)*scale;
+    canvas.height = (b.maxY-b.minY)*scale;
+    var ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(function(blob){
+      downloadBlob(blob, safeFilename(f.title) + ".png");
+    });
+  };
+  img.onerror = function(){ showToast("PNG export failed — try JSON export instead"); URL.revokeObjectURL(url); };
+  img.src = url;
+}
+function exportFlowPdf(f){
+  var p = findProjectOfSub(nav.subprojectId);
+  var s = p && getSub(p, nav.subprojectId);
+  var svgStr = buildStandaloneFlowSvgString(f, s.docs);
+  var pa = document.getElementById("printArea");
+  clear(pa);
+  var h = document.createElement("h1");
+  h.style.fontFamily = "Georgia,serif";
+  h.style.color = "#000";
+  h.textContent = f.title || "Untitled flowchart";
+  pa.appendChild(h);
+  var holder = document.createElement("div");
+  holder.style.background = "#14161C";
+  holder.style.padding = "10px";
+  holder.innerHTML = svgStr;
+  pa.appendChild(holder);
+  document.title = safeFilename(f.title);
+  setTimeout(function(){ window.print(); }, 80);
+}
+function exportFlowJson(f){
+  var blob = new Blob([JSON.stringify(f, null, 2)], { type:"application/json" });
+  downloadBlob(blob, safeFilename(f.title) + ".json");
+}
+
+/* ============================================================
+   MAIN RENDER DISPATCH
+============================================================ */
+function render(){
+  var root = document.getElementById("app");
+  clear(root);
+  switch(nav.screen){
+    case "home": screenHome(root); break;
+    case "project": screenProject(root); break;
+    case "subproject": screenSubproject(root); break;
+    case "doc": screenDoc(root); break;
+    case "flow": screenFlow(root); break;
+    default: screenHome(root);
+  }
+}
+
+/* ============================================================
+   BOOT
+============================================================ */
+state = loadState();
+render();
+
+window.addEventListener("beforeunload", function(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+});
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("./sw.js").catch(function(e){ console.warn("SW registration failed", e); });
+  });
+}
+
+})();
+</script>
+</body>
+</html>
