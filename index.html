@@ -102,6 +102,13 @@
     box-shadow:0 8px 24px rgba(79,209,197,.35); display:flex; align-items:center; justify-content:center;
   }
   .fab:active{ transform:scale(.94); }
+  .fab-secondary{
+    position:fixed; right:86px; bottom:calc(22px + var(--safe-bottom)); z-index:30;
+    width:52px;height:52px;border-radius:16px; border:1px solid var(--line-strong);
+    background:var(--panel-2); color:var(--paper); font-size:19px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .fab-secondary:active{ transform:scale(.94); }
 
   /* ---------- Tabs (subproject view) ---------- */
   .tabbar{ display:flex; gap:6px; padding:12px 14px 0; background:var(--ink); position:sticky; top:0; z-index:10; }
@@ -170,6 +177,31 @@
   #docEditor p{ margin:0 0 .9em; }
   #docEditor ul{ padding-left:1.3em; margin:0 0 .9em; }
   #docEditor:empty:before{ content:attr(data-placeholder); color:var(--slate-dim); }
+
+  /* ---------- Script editor ---------- */
+  .script-toolbar{
+    display:flex; gap:4px; padding:8px 8px; background:var(--panel); border-bottom:1px solid var(--line);
+    position:sticky; top:0; z-index:10; overflow-x:auto;
+  }
+  .tbtn-wide{
+    min-width:58px; height:42px; border-radius:9px; border:none; background:transparent; color:var(--slate);
+    font-size:10.5px; font-weight:700; flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+    letter-spacing:.02em;
+  }
+  .tbtn-wide.active{ background:var(--teal); color:#0B2320; }
+  .tbtn-wide:active{ background:var(--panel-2); }
+  #scriptEditor{
+    padding:22px 16px calc(60px + var(--safe-bottom)); min-height:60vh; outline:none;
+    font-family:'Courier New', Courier, monospace; font-size:14.5px; line-height:1.6; color:var(--paper);
+  }
+  #scriptEditor div{ margin:0 0 12px; white-space:pre-wrap; word-break:break-word; }
+  #scriptEditor .sh{ text-transform:uppercase; font-weight:700; }
+  #scriptEditor .act{ }
+  #scriptEditor .char{ text-transform:uppercase; margin-left:32%; font-weight:700; }
+  #scriptEditor .dlg{ margin-left:16%; margin-right:12%; }
+  #scriptEditor .paren{ margin-left:24%; margin-right:18%; font-style:italic; color:var(--slate); }
+  #scriptEditor .trans{ text-transform:uppercase; text-align:right; }
+  #scriptEditor:empty:before{ content:attr(data-placeholder); color:var(--slate-dim); font-family:-apple-system,sans-serif; }
 
   /* ---------- Flowchart ---------- */
   .flow-toolbar{
@@ -455,7 +487,74 @@ function screenHome(root){
   }
   main.appendChild(pad);
   root.appendChild(main);
+
+  var fileInput = el("input", { type:"file", accept:"application/json,.json", style:"display:none" });
+  fileInput.addEventListener("change", function(){
+    var file = fileInput.files && fileInput.files[0];
+    if(file) importProjectFile(file);
+    fileInput.value = "";
+  });
+  root.appendChild(fileInput);
+  root.appendChild(el("button", { class:"fab-secondary", onclick:function(){ fileInput.click(); } }, ["⇧"]));
   root.appendChild(el("button", { class:"fab", onclick:function(){ newProjectModal(); } }, ["+"]));
+}
+
+function reassignProjectIds(project){
+  var np = { id:uid(), name:project.name || "Imported project", updatedAt:now(), subprojects:[] };
+  (project.subprojects||[]).forEach(function(s){
+    var docIdMap = {};
+    var ns = { id:uid(), name:s.name || "Untitled", updatedAt:now(), docs:[], flowcharts:[] };
+    (s.docs||[]).forEach(function(d){
+      var nd = { id:uid(), title:d.title||"Untitled page", html:d.html||"", kind:d.kind||"page", updatedAt:now() };
+      docIdMap[d.id] = nd.id;
+      ns.docs.push(nd);
+    });
+    (s.flowcharts||[]).forEach(function(f){
+      var nodeIdMap = {};
+      var nf = { id:uid(), title:f.title||"Untitled flowchart", updatedAt:now(), nodes:[], edges:[] };
+      (f.nodes||[]).forEach(function(n){
+        var nn = Object.assign({}, n, {
+          id:uid(),
+          linkedDocId: n.linkedDocId ? (docIdMap[n.linkedDocId] || null) : null
+        });
+        nodeIdMap[n.id] = nn.id;
+        nf.nodes.push(nn);
+      });
+      (f.edges||[]).forEach(function(e){
+        if(nodeIdMap[e.from] && nodeIdMap[e.to]){
+          nf.edges.push({ id:uid(), from:nodeIdMap[e.from], to:nodeIdMap[e.to], label:e.label||"" });
+        }
+      });
+      ns.flowcharts.push(nf);
+    });
+    np.subprojects.push(ns);
+  });
+  return np;
+}
+
+function importProjectFile(file){
+  var reader = new FileReader();
+  reader.onload = function(){
+    var obj;
+    try{ obj = JSON.parse(reader.result); }
+    catch(e){ showToast("Couldn't read that file — is it a Lorline project export?"); return; }
+    if(!obj || typeof obj.name !== "string" || !Array.isArray(obj.subprojects)){
+      showToast("That doesn't look like a Lorline project file");
+      return;
+    }
+    var imported = reassignProjectIds(obj);
+    state.projects.push(imported);
+    scheduleSave();
+    showToast("Imported \"" + imported.name + "\"");
+    render();
+  };
+  reader.onerror = function(){ showToast("Couldn't read that file"); };
+  reader.readAsText(file);
+}
+
+function exportProjectJson(p){
+  var blob = new Blob([JSON.stringify(p, null, 2)], { type:"application/json" });
+  downloadBlob(blob, safeFilename(p.name) + ".json");
 }
 
 function newProjectModal(){
@@ -481,6 +580,7 @@ function projectMenu(p){
     center:true,
     vertical:true,
     actions:[
+      { label:"⇩  Export project", style:"btn-ghost", onClick:function(){ exportProjectJson(p); } },
       { label:"✎  Rename", style:"btn-ghost", onClick:function(){
         setTimeout(function(){ renameModal(p.name, function(newName){ p.name=newName; touch(p); scheduleSave(); render(); }); }, 50);
       }},
@@ -513,7 +613,9 @@ function renameModal(currentName, onSave){
 function screenProject(root){
   var p = getProject(nav.projectId);
   if(!p){ goBack(); return; }
-  renderHeader(root, { eyebrow:"Lorline Studio", title:p.name, back:true });
+  renderHeader(root, { eyebrow:"Lorline Studio", title:p.name, back:true,
+    actions:[{ icon:"⇩", onClick:function(){ exportProjectJson(p); } }, { icon:"⋮", onClick:function(){ projectMenu(p); } }]
+  });
   var main = el("main");
   var pad = el("div", { class:"list-pad" });
 
@@ -604,12 +706,14 @@ function screenSubproject(root){
       ]));
     } else {
       s.docs.slice().sort(function(a,b){ return b.updatedAt-a.updatedAt; }).forEach(function(d){
+        var isScript = d.kind==="script";
         var preview = stripHtml(d.html).slice(0,70);
-        pad.appendChild(el("div", { class:"card", onclick:function(){ goTo({screen:"doc", subprojectId:s.id, docId:d.id}); } }, [
+        var tag = isScript ? "Script · " : "";
+        pad.appendChild(el("div", { class:"card" + (isScript?" branch":""), onclick:function(){ goTo({screen: isScript?"script":"doc", subprojectId:s.id, docId:d.id}); } }, [
           el("div", { class:"stripe" }),
           el("div", { class:"card-main" }, [
-            el("div", { class:"card-title" }, [d.title || "Untitled page"]),
-            el("div", { class:"card-sub" }, [(preview||"Empty page") + " · " + fmtDate(d.updatedAt)])
+            el("div", { class:"card-title" }, [d.title || (isScript?"Untitled script":"Untitled page")]),
+            el("div", { class:"card-sub" }, [tag + (preview||"Empty") + " · " + fmtDate(d.updatedAt)])
           ]),
           el("div", { class:"card-kebab", onclick:function(e){ e.stopPropagation(); docMenu(s, d); } }, ["⋮"])
         ]));
@@ -637,7 +741,7 @@ function screenSubproject(root){
   main.appendChild(pad);
   root.appendChild(main);
   root.appendChild(el("button", { class:"fab", onclick:function(){
-    if(subTab==="docs") newDocModal(s); else newFlowModal(s);
+    if(subTab==="docs") newDocTypeModal(s); else newFlowModal(s);
   } }, ["+"]));
 }
 
@@ -654,23 +758,35 @@ function stripHtml(html){
   return (d.textContent || "").replace(/\s+/g," ").trim();
 }
 
-function newDocModal(s){
+function newDocTypeModal(s){
+  var selectedKind = "page";
+  var pageOpt = el("div", { class:"type-opt sel" }, [ el("span",{class:"ic"},["▤"]), "Page" ]);
+  var scriptOpt = el("div", { class:"type-opt" }, [ el("span",{class:"ic"},["🎬"]), "Script" ]);
+  pageOpt.addEventListener("click", function(){ selectedKind="page"; pageOpt.classList.add("sel"); scriptOpt.classList.remove("sel"); });
+  scriptOpt.addEventListener("click", function(){ selectedKind="script"; scriptOpt.classList.add("sel"); pageOpt.classList.remove("sel"); });
+  var typeWrap = el("div", {}, [
+    el("div", { class:"field-label" }, ["Type"]),
+    el("div", { class:"type-choice" }, [pageOpt, scriptOpt])
+  ]);
   openModal({
-    title:"New page",
-    fields:[{ key:"title", label:"Page title", type:"text", value:"" }],
+    title:"New page or script",
+    fields:[{ key:"title", label:"Title", type:"text", value:"" }],
+    body: typeWrap,
     actions:[
       { label:"Cancel", style:"btn-ghost" },
       { label:"Create", style:"btn-primary", onClick:function(v){
-        var d = { id:uid(), title:v.title.trim()||"Untitled page", html:"", updatedAt:now() };
+        var isScript = selectedKind==="script";
+        var d = { id:uid(), title:v.title.trim()||(isScript?"Untitled script":"Untitled page"), html:"", kind:selectedKind, updatedAt:now() };
         s.docs.push(d); touch(s); scheduleSave();
-        goTo({screen:"doc", subprojectId:s.id, docId:d.id});
+        goTo({screen: isScript?"script":"doc", subprojectId:s.id, docId:d.id});
       }}
     ]
   });
 }
 function docMenu(s, d){
+  var isScript = d.kind==="script";
   openModal({
-    title:d.title||"Untitled page", center:true, vertical:true,
+    title:d.title||(isScript?"Untitled script":"Untitled page"), center:true, vertical:true,
     actions:[
       { label:"⇩  Export", style:"btn-ghost", onClick:function(){ setTimeout(function(){ exportDocModal(d); },50); } },
       { label:"✎  Rename", style:"btn-ghost", onClick:function(){
@@ -678,7 +794,7 @@ function docMenu(s, d){
       }},
       { label:"🗑  Delete", style:"btn-danger", onClick:function(){
         setTimeout(function(){
-          confirmDialog("Delete \"" + (d.title||"Untitled page") + "\"?", function(){
+          confirmDialog("Delete \"" + (d.title||"Untitled") + "\"?", function(){
             s.docs = s.docs.filter(function(x){ return x.id!==d.id; });
             // clear links pointing to this doc
             s.flowcharts.forEach(function(f){ f.nodes.forEach(function(n){ if(n.linkedDocId===d.id) n.linkedDocId=null; }); });
@@ -798,16 +914,129 @@ function screenDoc(root){
 }
 
 /* ============================================================
+   SCREEN: SCRIPT EDITOR (screenplay format with element hotkeys)
+============================================================ */
+function screenScript(root){
+  var p = findProjectOfSub(nav.subprojectId);
+  var s = p && getSub(p, nav.subprojectId);
+  var d = s && getDoc(s, nav.docId);
+  if(!d){ goBack(); return; }
+
+  renderHeader(root, {
+    eyebrow: s.name, title: d.title || "Untitled script", back:true, savePill:true,
+    actions:[{ icon:"⇩", onClick:function(){ exportDocModal(d); } }, { icon:"⋮", onClick:function(){ docMenu(s, d); } }]
+  });
+
+  var toolbar = el("div", { class:"script-toolbar" });
+  var typeBtns = {};
+  SCRIPT_TYPES.forEach(function(t){
+    var b = el("button", { class:"tbtn-wide", onclick:function(){ setBlockType(t); } }, [SCRIPT_LABELS[t]]);
+    typeBtns[t] = b;
+    toolbar.appendChild(b);
+  });
+  root.appendChild(toolbar);
+
+  var main = el("main");
+  var editor = el("div", { id:"scriptEditor", contenteditable:"true", spellcheck:"true" });
+  if(d.html && d.html.trim()){
+    editor.innerHTML = d.html;
+  } else {
+    var starter = document.createElement("div");
+    starter.className = "sh";
+    starter.innerHTML = "<br>";
+    editor.appendChild(starter);
+  }
+  main.appendChild(editor);
+  root.appendChild(main);
+
+  var typingTimer = null;
+  function onScriptChange(){
+    d.html = editor.innerHTML;
+    touch(d); touch(s);
+    scheduleSave();
+  }
+  editor.addEventListener("input", function(){
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(onScriptChange, 250);
+  });
+
+  function getCurrentBlock(){
+    var sel = window.getSelection();
+    if(!sel.rangeCount) return null;
+    var node = sel.getRangeAt(0).startContainer;
+    while(node && node!==editor && node.parentNode!==editor){ node = node.parentNode; }
+    return (node && node!==editor && node.parentNode===editor) ? node : null;
+  }
+  function placeCaretAtEnd(node){
+    var range = document.createRange();
+    range.selectNodeContents(node);
+    range.collapse(false);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  function refreshActiveTypeBtn(type){
+    Object.keys(typeBtns).forEach(function(k){ typeBtns[k].classList.toggle("active", k===type); });
+  }
+  function updateActiveFromCursor(){
+    var cur = getCurrentBlock();
+    refreshActiveTypeBtn(cur ? (cur.className||"act") : (editor.lastElementChild ? (editor.lastElementChild.className||"act") : "sh"));
+  }
+
+  function setBlockType(type){
+    editor.focus();
+    var cur = getCurrentBlock();
+    if(!cur){
+      cur = editor.lastElementChild;
+    }
+    if(!cur){
+      cur = document.createElement("div");
+      cur.innerHTML = "<br>";
+      editor.appendChild(cur);
+    }
+    cur.className = type;
+    placeCaretAtEnd(cur);
+    refreshActiveTypeBtn(type);
+    onScriptChange();
+  }
+
+  editor.addEventListener("keydown", function(e){
+    if(e.key==="Enter" && !e.shiftKey){
+      e.preventDefault();
+      var cur = getCurrentBlock();
+      var curType = cur ? (cur.className||"act") : "act";
+      var nextType = SCRIPT_NEXT_TYPE[curType] || "act";
+      var div = document.createElement("div");
+      div.className = nextType;
+      div.innerHTML = "<br>";
+      if(cur && cur.parentNode===editor){
+        cur.parentNode.insertBefore(div, cur.nextSibling);
+      } else {
+        editor.appendChild(div);
+      }
+      placeCaretAtEnd(div);
+      refreshActiveTypeBtn(nextType);
+      onScriptChange();
+    }
+  });
+  editor.addEventListener("keyup", updateActiveFromCursor);
+  editor.addEventListener("mouseup", updateActiveFromCursor);
+  editor.addEventListener("touchend", function(){ setTimeout(updateActiveFromCursor, 30); });
+  updateActiveFromCursor();
+}
+
+/* ============================================================
    DOC EXPORT
 ============================================================ */
 function exportDocModal(d){
+  var isScript = d.kind==="script";
   openModal({
-    title:"Export \"" + (d.title||"Untitled page") + "\"",
+    title:"Export \"" + (d.title||(isScript?"Untitled script":"Untitled page")) + "\"",
     center:true, vertical:true,
     actions:[
-      { label:"📄  Plain text (.txt)", style:"btn-ghost", onClick:function(){ exportDocTxt(d); } },
-      { label:"🖨  PDF (print)", style:"btn-ghost", onClick:function(){ exportDocPdf(d); } },
-      { label:"📝  Word (.docx)", style:"btn-ghost", onClick:function(){ exportDocDocx(d); } }
+      { label:"📄  Plain text (.txt)", style:"btn-ghost", onClick:function(){ isScript ? exportScriptTxt(d) : exportDocTxt(d); } },
+      { label:"🖨  PDF (print)", style:"btn-ghost", onClick:function(){ isScript ? exportScriptPdf(d) : exportDocPdf(d); } },
+      { label:"📝  Word (.docx)", style:"btn-ghost", onClick:function(){ isScript ? exportScriptDocx(d) : exportDocDocx(d); } }
     ]
   });
 }
@@ -992,12 +1221,7 @@ function paragraphsToDocxXml(title, paras){
   });
   return body;
 }
-function buildDocxBlob(title, html){
-  var tmp = document.createElement("div");
-  tmp.innerHTML = html || "";
-  var paras = domToParagraphs(tmp);
-  var bodyXml = paragraphsToDocxXml(title, paras);
-
+function buildDocxPackage(bodyXml, stylesXml){
   var contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
@@ -1016,15 +1240,6 @@ function buildDocxBlob(title, html){
     '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
     '</Relationships>';
 
-  var styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-    '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
-    '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:pPr/><w:rPr><w:sz w:val="24"/></w:rPr></w:style>' +
-    '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="240"/></w:pPr><w:rPr><w:b/><w:sz w:val="44"/></w:rPr></w:style>' +
-    '<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="240" w:after="120"/></w:pPr><w:rPr><w:b/><w:sz w:val="32"/></w:rPr></w:style>' +
-    '<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="200" w:after="100"/></w:pPr><w:rPr><w:b/><w:sz w:val="27"/></w:rPr></w:style>' +
-    '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="720"/></w:pPr></w:style>' +
-    '</w:styles>';
-
   var documentXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
     '<w:body>' + bodyXml +
@@ -1036,11 +1251,119 @@ function buildDocxBlob(title, html){
   zip.addFile("_rels/.rels", rootRels);
   zip.addFile("word/document.xml", documentXml);
   zip.addFile("word/_rels/document.xml.rels", docRels);
-  zip.addFile("word/styles.xml", styles);
+  zip.addFile("word/styles.xml", stylesXml);
   return zip.build();
+}
+function buildDocxBlob(title, html){
+  var tmp = document.createElement("div");
+  tmp.innerHTML = html || "";
+  var paras = domToParagraphs(tmp);
+  var bodyXml = paragraphsToDocxXml(title, paras);
+  var styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:pPr/><w:rPr><w:sz w:val="24"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="240"/></w:pPr><w:rPr><w:b/><w:sz w:val="44"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="240" w:after="120"/></w:pPr><w:rPr><w:b/><w:sz w:val="32"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="200" w:after="100"/></w:pPr><w:rPr><w:b/><w:sz w:val="27"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="720"/></w:pPr></w:style>' +
+    '</w:styles>';
+  return buildDocxPackage(bodyXml, styles);
 }
 function exportDocDocx(d){
   var blob = buildDocxBlob(d.title || "Untitled page", d.html || "");
+  downloadBlob(blob, safeFilename(d.title) + ".docx");
+}
+
+/* ---- Script (screenplay) blocks -> TXT / PDF(print) / DOCX ---- */
+var SCRIPT_TYPES = ["sh","act","char","dlg","paren","trans"];
+var SCRIPT_LABELS = { sh:"Scene", act:"Action", char:"Character", dlg:"Dialogue", paren:"Parens", trans:"Trans." };
+var SCRIPT_NEXT_TYPE = { sh:"act", act:"act", char:"dlg", dlg:"act", paren:"dlg", trans:"sh" };
+function scriptBlockText(node){ return (node.textContent||"").replace(/\u00A0/g," ").trim(); }
+function scriptBlocksFromHtml(html){
+  var tmp = document.createElement("div");
+  tmp.innerHTML = html || "";
+  var blocks = [];
+  tmp.childNodes.forEach(function(n){
+    if(n.nodeType!==1) return;
+    var type = SCRIPT_TYPES.indexOf(n.className)>=0 ? n.className : "act";
+    blocks.push({ type:type, text:scriptBlockText(n) });
+  });
+  if(blocks.length===0) blocks.push({ type:"act", text:"" });
+  return blocks;
+}
+function exportScriptTxt(d){
+  var blocks = scriptBlocksFromHtml(d.html);
+  var lines = [];
+  var INDENT = { sh:0, act:0, char:22, dlg:10, paren:16, trans:0 };
+  blocks.forEach(function(b){
+    var text = b.text;
+    if(b.type==="sh"||b.type==="char"||b.type==="trans") text = text.toUpperCase();
+    if(b.type==="trans"){
+      var width = 60;
+      var space = Math.max(0, width - text.length);
+      lines.push(" ".repeat(space) + text);
+    } else {
+      lines.push(" ".repeat(INDENT[b.type]||0) + text);
+    }
+    lines.push("");
+  });
+  var out = (d.title||"Untitled script") + "\n\n" + lines.join("\n");
+  downloadBlob(new Blob([out], {type:"text/plain"}), safeFilename(d.title) + ".txt");
+}
+function exportScriptPdf(d){
+  var blocks = scriptBlocksFromHtml(d.html);
+  var pa = document.getElementById("printArea");
+  clear(pa);
+  var wrap = document.createElement("div");
+  wrap.style.fontFamily = "'Courier New', Courier, monospace";
+  wrap.style.fontSize = "12pt";
+  wrap.style.color = "#000";
+  var h = document.createElement("h1");
+  h.style.fontFamily = "Georgia,serif";
+  h.textContent = d.title || "Untitled script";
+  wrap.appendChild(h);
+  blocks.forEach(function(b){
+    var text = b.text;
+    if(b.type==="sh"||b.type==="char"||b.type==="trans") text = text.toUpperCase();
+    var p = document.createElement("div");
+    p.style.margin = "0 0 10px"; p.style.whiteSpace = "pre-wrap";
+    if(b.type==="sh"){ p.style.fontWeight="700"; }
+    else if(b.type==="char"){ p.style.marginLeft="32%"; p.style.fontWeight="700"; }
+    else if(b.type==="dlg"){ p.style.marginLeft="16%"; p.style.marginRight="12%"; }
+    else if(b.type==="paren"){ p.style.marginLeft="24%"; p.style.marginRight="18%"; p.style.fontStyle="italic"; }
+    else if(b.type==="trans"){ p.style.textAlign="right"; }
+    p.textContent = text;
+    wrap.appendChild(p);
+  });
+  pa.appendChild(wrap);
+  document.title = safeFilename(d.title);
+  setTimeout(function(){ window.print(); }, 80);
+}
+var SCRIPT_STYLE_ID = { sh:"SceneHeading", act:"Action", char:"CharacterName", dlg:"Dialogue", paren:"Parenthetical", trans:"Transition" };
+function buildScriptDocxBlob(title, html){
+  var blocks = scriptBlocksFromHtml(html);
+  var bodyXml = '<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t xml:space="preserve">' + xmlEscape(title) + '</w:t></w:r></w:p>';
+  blocks.forEach(function(b){
+    var text = b.text;
+    if(b.type==="sh"||b.type==="char"||b.type==="trans") text = text.toUpperCase();
+    var styleId = SCRIPT_STYLE_ID[b.type] || "Action";
+    bodyXml += '<w:p><w:pPr><w:pStyle w:val="'+styleId+'"/></w:pPr><w:r><w:t xml:space="preserve">' + xmlEscape(text) + '</w:t></w:r></w:p>';
+  });
+  var styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/><w:sz w:val="24"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="240"/></w:pPr><w:rPr><w:rFonts w:ascii="Georgia" w:hAnsi="Georgia"/><w:b/><w:sz w:val="40"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="SceneHeading"><w:name w:val="Scene Heading"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="240" w:after="120"/></w:pPr><w:rPr><w:b/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Action"><w:name w:val="Action"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="120"/></w:pPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="CharacterName"><w:name w:val="Character"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="2160"/><w:spacing w:before="120"/></w:pPr><w:rPr><w:b/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Dialogue"><w:name w:val="Dialogue"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="1080" w:right="1080"/></w:pPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Parenthetical"><w:name w:val="Parenthetical"/><w:basedOn w:val="Normal"/><w:pPr><w:ind w:left="1600" w:right="1440"/></w:pPr><w:rPr><w:i/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Transition"><w:name w:val="Transition"/><w:basedOn w:val="Normal"/><w:pPr><w:jc w:val="right"/><w:spacing w:before="120" w:after="120"/></w:pPr></w:style>' +
+    '</w:styles>';
+  return buildDocxPackage(bodyXml, styles);
+}
+function exportScriptDocx(d){
+  var blob = buildScriptDocxBlob(d.title || "Untitled script", d.html || "");
   downloadBlob(blob, safeFilename(d.title) + ".docx");
 }
 
@@ -1080,9 +1403,11 @@ function screenFlow(root){
 
   var main = el("main");
   var wrap = el("div", { class:"flow-canvas-wrap" });
-  var W = Math.max(1400, window.innerWidth*2);
-  var H = Math.max(1400, window.innerHeight*2);
-  var svg = svgEl("svg", { id:"flowSvg", width:W, height:H, viewBox:"0 0 "+W+" "+H });
+  var GROW_MARGIN = 500;
+  var GROW_STEP = 900;
+  var canvasW = Math.max(1400, window.innerWidth*1.6);
+  var canvasH = Math.max(1400, window.innerHeight*1.6);
+  var svg = svgEl("svg", { id:"flowSvg", width:canvasW, height:canvasH, viewBox:"0 0 "+canvasW+" "+canvasH });
   wrap.appendChild(svg);
   main.appendChild(wrap);
   root.appendChild(main);
@@ -1091,6 +1416,27 @@ function screenFlow(root){
   var nodeLayer = svgEl("g", { id:"nodeLayer" });
   svg.appendChild(edgeLayer);
   svg.appendChild(nodeLayer);
+
+  // edgeIndex: nodeId -> array of { edge, lineEl, hitEl, bgEl, lblEl }, for cheap per-node updates while dragging
+  var edgeIndex = {};
+
+  function ensureCanvasSize(){
+    var maxRight = 100, maxBottom = 100;
+    f.nodes.forEach(function(n){
+      maxRight = Math.max(maxRight, n.x+n.w);
+      maxBottom = Math.max(maxBottom, n.y+n.h);
+    });
+    var neededW = maxRight + GROW_MARGIN;
+    var neededH = maxBottom + GROW_MARGIN;
+    var changed = false;
+    if(neededW > canvasW){ canvasW = neededW + GROW_STEP; changed = true; }
+    if(neededH > canvasH){ canvasH = neededH + GROW_STEP; changed = true; }
+    if(changed){
+      svg.setAttribute("width", canvasW);
+      svg.setAttribute("height", canvasH);
+      svg.setAttribute("viewBox", "0 0 "+canvasW+" "+canvasH);
+    }
+  }
 
   function toggleConnectMode(){
     flowConnectMode = !flowConnectMode;
@@ -1103,7 +1449,12 @@ function screenFlow(root){
   function addNode(f, type){
     var n = { id:uid(), x: 60 + Math.random()*120, y: 60 + Math.random()*120, w: type==="branch"?150:170, h: type==="branch"?100:70, text: type==="branch" ? "New decision" : "New scene", type:type, linkedDocId:null };
     f.nodes.push(n); touch(f); touch(s); scheduleSave();
+    ensureCanvasSize();
     renderAll();
+    // scroll the new node into view
+    setTimeout(function(){
+      wrap.scrollTo({ left: Math.max(0, n.x - wrap.clientWidth/2), top: Math.max(0, n.y - wrap.clientHeight/2), behavior:"smooth" });
+    }, 30);
   }
 
   function deleteSelected(f){
@@ -1131,6 +1482,10 @@ function screenFlow(root){
 
   function renderEdges(){
     clear(edgeLayer);
+    edgeIndex = {};
+    var defs = svgEl("defs");
+    defs.innerHTML = '<marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#4A5170"/></marker>';
+    edgeLayer.appendChild(defs);
     f.edges.forEach(function(e){
       var a = f.nodes.find(function(n){ return n.id===e.from; });
       var b = f.nodes.find(function(n){ return n.id===e.to; });
@@ -1141,18 +1496,35 @@ function screenFlow(root){
       hit.addEventListener("click", function(evt){ evt.stopPropagation(); flowSelectedEdge=e.id; flowSelectedNode=null; renderAll(); });
       edgeLayer.appendChild(line);
       edgeLayer.appendChild(hit);
+      var bg=null, lbl=null;
       if(e.label){
         var mid = { x:(a.x+a.w/2+b.x+b.w/2)/2, y:(a.y+a.h/2+b.y+b.h/2)/2 };
-        var bg = svgEl("rect", { x:mid.x-30, y:mid.y-10, width:60, height:18, rx:4, class:"fedge-label-bg" });
-        var lbl = svgEl("text", { x:mid.x, y:mid.y+3, "text-anchor":"middle", class:"fedge-label" });
+        bg = svgEl("rect", { x:mid.x-30, y:mid.y-10, width:60, height:18, rx:4, class:"fedge-label-bg" });
+        lbl = svgEl("text", { x:mid.x, y:mid.y+3, "text-anchor":"middle", class:"fedge-label" });
         lbl.textContent = e.label;
         edgeLayer.appendChild(bg);
         edgeLayer.appendChild(lbl);
       }
+      var rec = { edge:e, a:a, b:b, lineEl:line, hitEl:hit, bgEl:bg, lblEl:lbl };
+      (edgeIndex[a.id] = edgeIndex[a.id]||[]).push(rec);
+      (edgeIndex[b.id] = edgeIndex[b.id]||[]).push(rec);
     });
-    var defs = svgEl("defs");
-    defs.innerHTML = '<marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#4A5170"/></marker>';
-    edgeLayer.appendChild(defs);
+  }
+
+  // Lightweight update used during drag: only recompute paths for edges touching the moved node
+  function updateEdgesTouchingNode(nodeId){
+    var list = edgeIndex[nodeId];
+    if(!list) return;
+    list.forEach(function(rec){
+      var d = edgePath(rec.a, rec.b);
+      rec.lineEl.setAttribute("d", d);
+      rec.hitEl.setAttribute("d", d);
+      if(rec.bgEl && rec.lblEl){
+        var mid = { x:(rec.a.x+rec.a.w/2+rec.b.x+rec.b.w/2)/2, y:(rec.a.y+rec.a.h/2+rec.b.y+rec.b.h/2)/2 };
+        rec.bgEl.setAttribute("x", mid.x-30); rec.bgEl.setAttribute("y", mid.y-10);
+        rec.lblEl.setAttribute("x", mid.x); rec.lblEl.setAttribute("y", mid.y+3);
+      }
+    });
   }
 
   function renderNodes(){
@@ -1182,6 +1554,17 @@ function screenFlow(root){
 
   function attachNodeInteractions(g, n){
     var dragging = false, moved = false, startX, startY, origX, origY, pointerId;
+    var rafPending = false, pendingX = 0, pendingY = 0;
+
+    function applyFrame(){
+      rafPending = false;
+      n.x = Math.max(20, pendingX);
+      n.y = Math.max(20, pendingY);
+      g.setAttribute("transform","translate("+n.x+","+n.y+")");
+      updateEdgesTouchingNode(n.id);
+      ensureCanvasSize();
+    }
+
     g.addEventListener("pointerdown", function(evt){
       evt.stopPropagation();
       pointerId = evt.pointerId;
@@ -1196,9 +1579,11 @@ function screenFlow(root){
       var dx = pt.x-startX, dy = pt.y-startY;
       if(Math.abs(dx)>3||Math.abs(dy)>3) moved = true;
       if(moved){
-        n.x = origX+dx; n.y = origY+dy;
-        g.setAttribute("transform","translate("+n.x+","+n.y+")");
-        renderEdges();
+        pendingX = origX+dx; pendingY = origY+dy;
+        if(!rafPending){
+          rafPending = true;
+          requestAnimationFrame(applyFrame);
+        }
       }
     });
     g.addEventListener("pointerup", function(evt){
@@ -1255,7 +1640,7 @@ function screenFlow(root){
         { label:"Open linked page", style:"btn-ghost", onClick:function(){
           if(n.linkedDocId){
             var dd = s.docs.find(function(x){ return x.id===n.linkedDocId; });
-            if(dd) setTimeout(function(){ goTo({screen:"doc", subprojectId:s.id, docId:dd.id}); }, 60);
+            if(dd) setTimeout(function(){ goTo({screen: dd.kind==="script"?"script":"doc", subprojectId:s.id, docId:dd.id}); }, 60);
           } else { showToast("No page linked yet"); return false; }
         }},
         { label:"Save", style:"btn-primary", onClick:function(v){
@@ -1273,6 +1658,7 @@ function screenFlow(root){
   });
 
   function renderAll(){ renderEdges(); renderNodes(); }
+  ensureCanvasSize();
   renderAll();
 }
 
@@ -1392,6 +1778,7 @@ function render(){
     case "project": screenProject(root); break;
     case "subproject": screenSubproject(root); break;
     case "doc": screenDoc(root); break;
+    case "script": screenScript(root); break;
     case "flow": screenFlow(root); break;
     default: screenHome(root);
   }
