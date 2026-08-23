@@ -176,7 +176,20 @@
   #docEditor h2{ font-size:1.25em; margin:.6em 0 .3em; color:var(--teal); }
   #docEditor p{ margin:0 0 .9em; }
   #docEditor ul{ padding-left:1.3em; margin:0 0 .9em; }
+  #docEditor ol{ padding-left:1.3em; margin:0 0 .9em; }
   #docEditor:empty:before{ content:attr(data-placeholder); color:var(--slate-dim); }
+
+  /* ---------- Doc <-> flowchart link bar ---------- */
+  .link-bar{
+    display:flex; gap:8px; padding:9px 12px; background:var(--ink); overflow-x:auto;
+    border-bottom:1px solid var(--line); position:sticky; top:0; z-index:9;
+  }
+  .link-chip{
+    display:flex; align-items:center; gap:7px; background:var(--panel-2); border:1px solid var(--line-strong);
+    border-radius:99px; padding:6px 8px 6px 12px; font-size:12px; color:var(--paper); white-space:nowrap; flex-shrink:0;
+  }
+  .link-chip .lbl{ max-width:46vw; overflow:hidden; text-overflow:ellipsis; }
+  .link-chip .x{ color:var(--slate); font-size:15px; padding:2px 5px; }
 
   /* ---------- Script editor ---------- */
   .script-toolbar{
@@ -745,6 +758,33 @@ function screenSubproject(root){
   } }, ["+"]));
 }
 
+function findLinkedFlowNodes(s, docId){
+  var results = [];
+  s.flowcharts.forEach(function(f){
+    f.nodes.forEach(function(n){
+      if(n.linkedDocId===docId) results.push({ flowchart:f, node:n });
+    });
+  });
+  return results;
+}
+function buildLinkBar(s, linkedNodes){
+  var bar = el("div", { class:"link-bar" });
+  linkedNodes.forEach(function(item){
+    var lbl = el("span", { class:"lbl" }, ["⌥ " + (item.flowchart.title||"Flowchart") + " → " + (item.node.text||"node")]);
+    var x = el("span", { class:"x", onclick:function(e){
+      e.stopPropagation();
+      item.node.linkedDocId = null;
+      touch(item.flowchart); touch(s); scheduleSave();
+      render();
+    } }, ["✕"]);
+    var chip = el("div", { class:"link-chip", onclick:function(){
+      goTo({ screen:"flow", subprojectId:s.id, flowchartId:item.flowchart.id, focusNodeId:item.node.id });
+    } }, [lbl, x]);
+    bar.appendChild(chip);
+  });
+  return bar;
+}
+
 function findProjectOfSub(subId){
   for(var i=0;i<state.projects.length;i++){
     var p = state.projects[i];
@@ -789,6 +829,7 @@ function docMenu(s, d){
     title:d.title||(isScript?"Untitled script":"Untitled page"), center:true, vertical:true,
     actions:[
       { label:"⇩  Export", style:"btn-ghost", onClick:function(){ setTimeout(function(){ exportDocModal(d); },50); } },
+      { label:"⌥  Link to flowchart node", style:"btn-ghost", onClick:function(){ setTimeout(function(){ linkDocToFlowModal(s, d); }, 50); } },
       { label:"✎  Rename", style:"btn-ghost", onClick:function(){
         setTimeout(function(){ renameModal(d.title, function(n){ d.title=n; touch(d); touch(s); scheduleSave(); render(); }); }, 50);
       }},
@@ -801,6 +842,50 @@ function docMenu(s, d){
             touch(s); scheduleSave(); render();
           });
         }, 50);
+      }}
+    ]
+  });
+}
+
+function linkDocToFlowModal(s, d){
+  if(s.flowcharts.length===0){ showToast("Create a flowchart in this project first"); return; }
+  var flowSelect = el("select", {});
+  s.flowcharts.forEach(function(f){
+    flowSelect.appendChild(el("option", { value:f.id }, [f.title||"Untitled flowchart"]));
+  });
+  var nodeSelect = el("select", {});
+  function refreshNodeOptions(){
+    clear(nodeSelect);
+    var f = s.flowcharts.find(function(x){ return x.id===flowSelect.value; });
+    if(!f || f.nodes.length===0){
+      nodeSelect.appendChild(el("option", { value:"" }, ["No nodes in this flowchart yet"]));
+      return;
+    }
+    f.nodes.forEach(function(n){
+      var label = (n.type==="branch"?"◇ ":"▭ ") + (n.text||"node").slice(0,30) + (n.linkedDocId===d.id ? " (linked here)" : n.linkedDocId ? " (linked elsewhere)" : "");
+      nodeSelect.appendChild(el("option", { value:n.id }, [label]));
+    });
+  }
+  flowSelect.addEventListener("change", refreshNodeOptions);
+  refreshNodeOptions();
+  var body = el("div", {}, [
+    el("div", { class:"field-label" }, ["Flowchart"]), flowSelect,
+    el("div", { class:"field-label" }, ["Node"]), nodeSelect
+  ]);
+  openModal({
+    title:"Link \"" + (d.title||"this page") + "\" to a node",
+    body: body,
+    vertical:true,
+    actions:[
+      { label:"Cancel", style:"btn-ghost" },
+      { label:"Link", style:"btn-primary", onClick:function(){
+        var f = s.flowcharts.find(function(x){ return x.id===flowSelect.value; });
+        var n = f && f.nodes.find(function(x){ return x.id===nodeSelect.value; });
+        if(!f || !n){ showToast("Pick a node to link"); return false; }
+        n.linkedDocId = d.id;
+        touch(f); touch(s); scheduleSave();
+        showToast("Linked to \"" + (n.text||"node") + "\"");
+        render();
       }}
     ]
   });
@@ -875,7 +960,13 @@ function screenDoc(root){
   toolbar.appendChild(mkBtn("formatBlock","¶","P"));
   toolbar.appendChild(el("div",{class:"tsep"}));
   toolbar.appendChild(mkBtn("insertUnorderedList","•—"));
+  toolbar.appendChild(mkBtn("insertOrderedList","1.—"));
   root.appendChild(toolbar);
+
+  var linkedNodes = findLinkedFlowNodes(s, d.id);
+  if(linkedNodes.length){
+    root.appendChild(buildLinkBar(s, linkedNodes));
+  }
 
   var main = el("main");
   var editor = el("div", { id:"docEditor", contenteditable:"true", spellcheck:"true", "data-placeholder":"Start writing…" });
@@ -905,7 +996,7 @@ function screenDoc(root){
   editor.addEventListener("touchend", function(){ setTimeout(refreshToolbarState, 30); });
 
   function refreshToolbarState(){
-    ["bold","italic","underline","insertUnorderedList"].forEach(function(cmd){
+    ["bold","italic","underline","insertUnorderedList","insertOrderedList"].forEach(function(cmd){
       var b = btns[cmd+""];
       if(!b) return;
       try{ b.classList.toggle("active", document.queryCommandState(cmd)); }catch(e){}
@@ -935,6 +1026,11 @@ function screenScript(root){
     toolbar.appendChild(b);
   });
   root.appendChild(toolbar);
+
+  var linkedNodes = findLinkedFlowNodes(s, d.id);
+  if(linkedNodes.length){
+    root.appendChild(buildLinkBar(s, linkedNodes));
+  }
 
   var main = el("main");
   var editor = el("div", { id:"scriptEditor", contenteditable:"true", spellcheck:"true" });
@@ -1055,9 +1151,15 @@ function exportDocTxt(d){
   tmp.innerHTML = d.html || "";
   var lines = [];
   tmp.childNodes.forEach(function(n){
-    var t = n.textContent || "";
-    if(n.nodeName==="LI") lines.push("• " + t);
-    else lines.push(t);
+    if(n.nodeType!==1){ return; }
+    if(n.nodeName==="UL"){
+      n.querySelectorAll("li").forEach(function(li){ lines.push("• " + (li.textContent||"").trim()); });
+    } else if(n.nodeName==="OL"){
+      var i=1;
+      n.querySelectorAll("li").forEach(function(li){ lines.push((i++) + ". " + (li.textContent||"").trim()); });
+    } else {
+      lines.push((n.textContent||"").trim());
+    }
   });
   var text = (d.title||"Untitled page") + "\n\n" + lines.join("\n");
   downloadBlob(new Blob([text], {type:"text/plain"}), safeFilename(d.title) + ".txt");
@@ -1178,11 +1280,11 @@ function domToParagraphs(root){
     if(tag==="BR"){ runs.push({ text:"\n", bold:fmt.bold, italic:fmt.italic, underline:fmt.underline }); return; }
     node.childNodes.forEach(function(c){ walkInline(c, nf, runs); });
   }
-  function pushBlock(node, style){
+  function pushBlock(node, style, numId){
     var runs = [];
     walkInline(node, {}, runs);
     if(runs.length===0) runs.push({ text:"" });
-    paras.push({ style:style, runs:runs });
+    paras.push({ style:style, runs:runs, numId:numId||null });
   }
   root.childNodes.forEach(function(node){
     if(node.nodeType===3){
@@ -1193,8 +1295,11 @@ function domToParagraphs(root){
     switch(node.nodeName){
       case "H1": pushBlock(node, "Heading1"); break;
       case "H2": pushBlock(node, "Heading2"); break;
-      case "UL": case "OL":
-        node.querySelectorAll("li").forEach(function(li){ pushBlock(li, "ListParagraph"); });
+      case "UL":
+        node.querySelectorAll("li").forEach(function(li){ pushBlock(li, "ListParagraph", 1); });
+        break;
+      case "OL":
+        node.querySelectorAll("li").forEach(function(li){ pushBlock(li, "ListParagraph", 2); });
         break;
       case "P": case "DIV": pushBlock(node, "Normal"); break;
       default: pushBlock(node, "Normal");
@@ -1207,7 +1312,10 @@ function paragraphsToDocxXml(title, paras){
   var body = "";
   body += '<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t xml:space="preserve">' + xmlEscape(title) + '</w:t></w:r></w:p>';
   paras.forEach(function(p){
-    var pPr = p.style && p.style!=="Normal" ? '<w:pPr><w:pStyle w:val="'+p.style+'"/></w:pPr>' : "";
+    var pPrParts = [];
+    if(p.style && p.style!=="Normal") pPrParts.push('<w:pStyle w:val="'+p.style+'"/>');
+    if(p.numId) pPrParts.push('<w:numPr><w:ilvl w:val="0"/><w:numId w:val="'+p.numId+'"/></w:numPr>');
+    var pPr = pPrParts.length ? "<w:pPr>"+pPrParts.join("")+"</w:pPr>" : "";
     var runsXml = "";
     p.runs.forEach(function(r){
       if(r.text==="\n"){ runsXml += "<w:br/>"; return; }
@@ -1221,6 +1329,13 @@ function paragraphsToDocxXml(title, paras){
   });
   return body;
 }
+var DOCX_NUMBERING_XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+  '<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+  '<w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="&#8226;"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr><w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol" w:hint="default"/></w:rPr></w:lvl></w:abstractNum>' +
+  '<w:abstractNum w:abstractNumId="2"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum>' +
+  '<w:num w:numId="1"><w:abstractNumId w:val="1"/></w:num>' +
+  '<w:num w:numId="2"><w:abstractNumId w:val="2"/></w:num>' +
+  '</w:numbering>';
 function buildDocxPackage(bodyXml, stylesXml){
   var contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
@@ -1228,6 +1343,7 @@ function buildDocxPackage(bodyXml, stylesXml){
     '<Default Extension="xml" ContentType="application/xml"/>' +
     '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
     '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
+    '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' +
     '</Types>';
 
   var rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
@@ -1238,6 +1354,7 @@ function buildDocxPackage(bodyXml, stylesXml){
   var docRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
     '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+    '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>' +
     '</Relationships>';
 
   var documentXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
@@ -1252,6 +1369,7 @@ function buildDocxPackage(bodyXml, stylesXml){
   zip.addFile("word/document.xml", documentXml);
   zip.addFile("word/_rels/document.xml.rels", docRels);
   zip.addFile("word/styles.xml", stylesXml);
+  zip.addFile("word/numbering.xml", DOCX_NUMBERING_XML);
   return zip.build();
 }
 function buildDocxBlob(title, html){
@@ -1660,6 +1778,18 @@ function screenFlow(root){
   function renderAll(){ renderEdges(); renderNodes(); }
   ensureCanvasSize();
   renderAll();
+
+  if(nav.focusNodeId){
+    var focusNode = f.nodes.find(function(n){ return n.id===nav.focusNodeId; });
+    if(focusNode){
+      flowSelectedNode = focusNode.id;
+      renderAll();
+      setTimeout(function(){
+        wrap.scrollTo({ left: Math.max(0, focusNode.x - wrap.clientWidth/2), top: Math.max(0, focusNode.y - wrap.clientHeight/2), behavior:"smooth" });
+      }, 30);
+    }
+    nav.focusNodeId = null;
+  }
 }
 
 /* ============================================================
